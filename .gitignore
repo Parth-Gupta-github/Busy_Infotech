@@ -26,3 +26,6 @@ server/prisma/migrations/
 
 # Logs
 *.log
+
+# Starter files folder
+takehome-09-restaurant-orders/
