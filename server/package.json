@@ -1,0 +1,26 @@
+{
+  "name": "restaurant-orders-server",
+  "version": "1.0.0",
+  "description": "Backend API for Restaurant Order Management System",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "nodemon src/index.js",
+    "start": "node src/index.js",
+    "db:init": "node db/init.js",
+    "seed": "node db/seed.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "csv-stringify": "^6.8.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-validator": "^7.3.2",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.11.3"
+  }
+}
