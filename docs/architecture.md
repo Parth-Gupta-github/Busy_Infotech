@@ -1,134 +1,43 @@
-# System Architecture
+# Architecture
 
-## Overview
+## What are the moving pieces, and how do they talk to each other?
 
-The Restaurant Order Management System follows a **three-tier architecture**: a React single-page application (SPA) communicates with a Node.js/Express REST API, which in turn talks directly to a PostgreSQL database hosted on Supabase using raw SQL queries via the `pg` (node-postgres) driver pool.
+The system consists of three main moving pieces:
+1. **Frontend (Browser):** A React Single-Page Application built with Vite and Tailwind CSS v3. It manages user state (logged-in waiter/manager, token storage) and presents interactive UI views (Dashboard, Menu, Orders, Order Details, Alerts).
+2. **Backend Server (Node.js/Express):** A RESTful API running on Node.js and Express.js. It handles authentication, validates request inputs, enforces role-based permissions (Manager vs Waiter), manages order lifecycle transitions, and creates append-only audit entries.
+3. **Database (Supabase PostgreSQL):** A relational PostgreSQL database that persists all domain data across 7 tables (`users`, `menu_items`, `orders`, `order_lines`, `order_collaborators`, `audit_logs`, `alert_acknowledgments`).
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        BROWSER                                  │
-│                                                                 │
-│   React SPA (Vite)          Tailwind CSS v3                     │
-│   ┌──────────────┐          ┌──────────────┐                    │
-│   │   Pages      │          │  Dark theme  │                    │
-│   │  ─ Dashboard │          │  Glassmorphic│                    │
-│   │  ─ Menu Mgmt │          │  cards       │                    │
-│   │  ─ Orders    │          │  Responsive  │                    │
-│   │  ─ Alerts    │          └──────────────┘                    │
-│   └──────┬───────┘                                              │
-│          │ HTTP (JSON) — JWT in Authorization header             │
-└──────────┼──────────────────────────────────────────────────────┘
-           │
-           ▼
-┌──────────────────────────────────────────────────────────────────┐
-│                     EXPRESS API SERVER (:3000)                    │
-│                                                                  │
-│  ┌─────────────┐   ┌──────────────┐   ┌───────────────────────┐ │
-│  │  Middleware  │   │   Routes     │   │   Services            │ │
-│  │  ─ CORS     │──▶│  /api/auth   │──▶│  ─ authService        │ │
-│  │  ─ JSON     │   │  /api/menu   │   │  ─ menuService        │ │
-│  │  ─ Auth JWT │   │  /api/orders │   │  ─ orderService       │ │
-│  │  ─ Roles    │   │  /api/dash   │   │  ─ dashboardService   │ │
-│  │  ─ Errors   │   │  /api/alerts │   │  ─ alertService       │ │
-│  └─────────────┘   └──────────────┘   └───────────┬───────────┘ │
-│                                                    │             │
-│                                           pg Pool (Raw SQL)      │
-└────────────────────────────────────────────┬─────────────────────┘
-                                             │ SQL Query Pool
-                                             ▼
-                                  ┌─────────────────────┐
-                                  │   Supabase           │
-                                  │   PostgreSQL         │
-                                  │                     │
-                                  │  Tables:            │
-                                  │  ─ users            │
-                                  │  ─ menu_items       │
-                                  │  ─ orders           │
-                                  │  ─ order_lines      │
-                                  │  ─ order_collaborators│
-                                  │  ─ audit_logs       │
-                                  │  ─ alert_acknowledgments│
-                                  └─────────────────────┘
-```
+**Communication:**  
+The frontend talks to the Express server using standard `fetch` HTTP requests sending JSON payloads. Authenticated requests pass a JWT in the `Authorization: Bearer <token>` header. The Express server talks to PostgreSQL using native TCP sockets managed by the `pg` pool client, executing parameterized SQL queries (`$1`, `$2`).
 
-## How the Components Connect
+## Where does each piece run?
 
-### 1. Client → Server Communication
+- **Frontend:** Runs locally in the browser (development dev server at `http://localhost:5173`).
+- **Backend API:** Runs as a Node.js process locally (`http://localhost:3000`).
+- **Database:** Runs in the cloud on Supabase PostgreSQL (or a local PostgreSQL instance).
 
-The React frontend makes **HTTP requests** to the Express API using `fetch` or a lightweight HTTP client. Every request after login includes a **JWT token** in the `Authorization: Bearer <token>` header.
+## What is the request path for one representative user action, end to end?
 
-### 2. Server — Layered Architecture
+**Representative Action:** A Waiter updates an order status from `ACCEPTED` to `PREPARING`.
 
-The server follows a **three-layer pattern** to separate concerns:
+1. **User Action (Browser):** Waiter clicks the "Start Preparing" button on Order #12.
+2. **HTTP Request:** React sends a `PATCH /api/orders/12/status` request with body `{ "status": "PREPARING" }` and header `Authorization: Bearer <jwt_token>`.
+3. **Authentication Middleware:** Express checks the JWT token, verifies signature, and attaches user info (`req.user = { id, email, role: 'WAITER' }`) to the request object.
+4. **Authorization Check:** The order service queries `orders` and `order_collaborators` to verify that `req.user.id` is either the primary waiter or an assigned collaborator on Order #12 (or a Manager).
+5. **Lifecycle Rule Validation:** Server checks current status (`ACCEPTED`). Moving `ACCEPTED → PREPARING` is valid.
+6. **Database Transaction (Raw SQL):**
+   - Updates status: `UPDATE orders SET status = 'PREPARING', updated_at = NOW() WHERE id = $1`
+   - Inserts audit log: `INSERT INTO audit_logs (order_id, user_id, action, old_status, new_status) VALUES ($1, $2, 'STATUS_CHANGED', 'ACCEPTED', 'PREPARING')`
+7. **HTTP Response:** Server returns `200 OK` with updated order object and timeline.
+8. **UI Update:** React updates local component state, showing status badge as `PREPARING` and adding an entry to the timeline view.
 
-| Layer | Responsibility | Example |
-|-------|---------------|---------|
-| **Routes** | Parse HTTP requests, validate input, return HTTP responses | `POST /api/orders` → validate body → call service → `res.json()` |
-| **Services** | Business logic, rules enforcement, audit logging | Check lifecycle rules, verify user permissions, execute SQL queries |
-| **DB Pool (`db.js`)** | Database connection pooling & query execution using `pg` | `db.query('SELECT * FROM orders WHERE ...', [params])` |
+## What did you decide *not* to build, and why?
 
-### 3. Server → Database Communication (Raw SQL)
+1. **WebSockets / Server-Sent Events for Real-Time Updates:**  
+   *Why:* Real-time push adds complex socket connection lifecycle management and state synchronization. For a restaurant alert threshold of 15 minutes, polling `/api/alerts` every 30 seconds is completely sufficient and fits within the time budget.
 
-Using the `pg` pool module, all parameterized SQL queries are sent directly to PostgreSQL:
+2. **Client-Side Order Filtering & Sorting:**  
+   *Why:* The specification explicitly forbids loading all orders into the browser and filtering there. All text search, status/waiter filtering, sorting, and pagination happen on PostgreSQL via SQL parameters (`WHERE`, `LIKE`, `LIMIT`, `OFFSET`).
 
-```javascript
-// Parameterized SQL query:
-const result = await db.query(
-  `SELECT o.*, u.name as primary_waiter_name 
-   FROM orders o
-   JOIN users u ON o.primary_waiter_id = u.id
-   WHERE o.status = $1 AND o.primary_waiter_id = $2
-   ORDER BY o.created_at DESC LIMIT $3 OFFSET $4`,
-  ['PLACED', userId, 20, 0]
-);
-```
-
-### 4. Authentication Flow
-
-```
-┌──────┐      ┌──────────┐      ┌──────────┐
-│Client│      │  Server  │      │ Database │
-└──┬───┘      └────┬─────┘      └────┬─────┘
-   │               │                 │
-   │ POST /login   │                 │
-   │──────────────▶│                 │
-   │               │ SELECT * FROM   │
-   │               │ users WHERE     │
-   │               │ email = $1      │
-   │               │────────────────▶│
-   │               │   user record   │
-   │               │◀────────────────│
-   │               │                 │
-   │               │ bcrypt.compare  │
-   │               │ (password, hash)│
-   │               │                 │
-   │  accessToken  │                 │
-   │  (15 min TTL) │                 │
-   │  refreshToken │                 │
-   │  (7 day TTL)  │                 │
-   │◀──────────────│                 │
-```
-
-## Directory Structure
-
-```
-restaurant-orders/
-├── server/
-│   ├── db/
-│   │   ├── schema.sql             # Raw PostgreSQL DDL script
-│   │   ├── init.js                # Database initialization script
-│   │   └── seed.js                # Data seeder
-│   ├── src/
-│   │   ├── db.js                  # pg pool connection module
-│   │   ├── index.js               # Express app entry point
-│   │   ├── middleware/
-│   │   │   ├── auth.js            # JWT verification
-│   │   │   ├── roleCheck.js       # Role-based access control
-│   │   │   └── errorHandler.js    # Centralized error handling
-│   │   ├── routes/
-│   │   └── services/
-│   ├── .env.example
-│   └── package.json
-├── client/
-└── docs/                          # Project documentation
-```
+3. **Physical Order & Line Item Deletion:**  
+   *Why:* Deleting orders or line items destroys historical record accuracy and corrupts audit trails. We built soft-deletion (`archived = true`) for orders and voiding (`voided = true` with reason) for line items.

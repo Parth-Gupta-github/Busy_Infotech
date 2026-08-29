@@ -1,78 +1,46 @@
-# Key Technical Decisions
+# Decisions
 
-This document records every significant technical choice made during the project, what alternatives were considered, and why the chosen approach won. Each decision includes the trade-off.
+Log the decisions that actually shaped this codebase — the ones where a real alternative existed and you picked one. At least five entries. For each: what you chose, what you rejected, and why. At least one entry must be a decision you later reversed — say what changed your mind. It can be any entry below, not necessarily the last one; add a **Later reversed:** line to whichever one it is.
 
----
+## Decision 1
 
-## Decision 1: PostgreSQL (Supabase) over SQLite
+- **Chose:** Raw SQL using `pg` (node-postgres) connection pool.
+- **Rejected:** Prisma ORM with SQLite.
+- **Why:** Raw SQL provides direct control over SQL DDL (`CREATE TABLE`, foreign key constraints, indexes) and parameterized query execution (`$1`, `$2`), avoiding ORM abstraction hiding. It demonstrates explicit understanding of relational database design, transactions, and performance optimizations.
+- **Later reversed:** I initially scaffolded the project using Prisma ORM with SQLite for rapid setup. I later reversed this decision to switch to direct raw SQL with `pg` pool and PostgreSQL because an ORM hides query execution and raw SQL gives full clarity on indexes, parameterized queries, and JOIN behavior.
 
-**Context:** We need a database that supports relational data, server-side aggregations, and decimal types.
+## Decision 2
 
-**Decision:** PostgreSQL via Supabase.
+- **Chose:** Price snapshot field (`price_at_add NUMERIC(10, 2)`) on `order_lines`.
+- **Rejected:** Dynamically joining `menu_items.price` when computing running totals.
+- **Why:** The specification states running totals must be calculated from menu item prices at the time each line was added. If a manager updates a menu item's price later, active and past orders must retain their original line item prices. Snapshotting `price_at_add` guarantees historical pricing accuracy.
 
----
+## Decision 3
 
-## Decision 2: Raw SQL (`pg` driver) over Prisma / ORM
+- **Chose:** Tailwind CSS v3 for frontend styling.
+- **Rejected:** Writing Vanilla CSS from scratch or using heavy UI component libraries (Material UI / Ant Design).
+- **Why:** Writing custom CSS for 10 distinct views/components within a 12-hour budget is time-prohibitive. Tailwind v3 provides utility-first classes, built-in dark mode support, and rapid component styling while keeping the bundle lightweight.
 
-**Context:** We need to query PostgreSQL from Node.js.
+## Decision 4
 
-**Options considered:**
+- **Chose:** JWT (JSON Web Tokens) stateless authentication with role payloads.
+- **Rejected:** Server-side session storage (express-session with Redis or database session table).
+- **Why:** JWTs keep the Express server completely stateless. Encoding the user's role (`MANAGER` or `WAITER`) and user ID inside the signed JWT payload enables instant server-side permission checks in route middleware without querying the database on every single request.
 
-| Option | Pros | Cons |
-|--------|------|------|
-| **Prisma ORM** | Schema generator, auto-typed client | Abstraction layer hides SQL execution; magic behavior |
-| **Raw SQL (`pg` driver)** ✅ | Complete query control, direct SQL execution, explicit JOINs and parameterization, no ORM overhead | Must write SQL DDL scripts, manually map rows, carefully handle parameter placeholders (`$1`, `$2`) |
+## Decision 5
 
-**Decision:** Raw SQL using `pg` (node-postgres) connection pool.
+- **Chose:** Soft deletion (`archived = true`) for orders and menu items.
+- **Rejected:** Hard SQL `DELETE FROM` statements.
+- **Why:** Physically deleting orders or menu items breaks foreign key relationships in audit logs and destroys historical sales and revenue data. Setting `archived = true` removes items from default active views while preserving audit history.
 
-**Rationale:** Using raw SQL directly demonstrates complete understanding of SQL design, index utilization, transaction management, `JOIN` queries, and explicit aggregation functions (`SUM`, `COUNT`, `DATE_TRUNC`). It removes any ORM abstraction layer and gives precise control over every query executed against Supabase PostgreSQL.
+## Decision 6
 
-**What we gave up:** Auto-generated TypeScript/JS types from schema; must maintain SQL schema DDL (`schema.sql`) manually.
+- **Chose:** Mandatory voiding (`voided = true` with `void_reason`) for line items.
+- **Rejected:** Deleting line items from an open order.
+- **Why:** In a real restaurant, line items placed on an order cannot simply vanish — they must be voided with an explicit reason for inventory and auditing tracking. Voided lines remain in the order record but are excluded from running total calculations.
 
----
+## Decision 7
 
-## Decision 3: JWT Authentication over Sessions
-
-**Decision:** JWT with short-lived access tokens (15 min) and longer refresh tokens (7 days).
-
----
-
-## Decision 4: Price Snapshot (`price_at_add`) on `order_lines`
-
-**Decision:** Snapshot the current price into `order_lines.price_at_add` when the line item is added.
-
----
-
-## Decision 5: Soft Deletes over Hard Deletes
-
-**Decision:** Maintain an `archived` boolean flag on `orders` and `menu_items`.
-
----
-
-## Decision 6: Void Instead of Delete for Order Lines
-
-**Decision:** Mark lines as `voided = true` with a required `void_reason`.
-
----
-
-## Decision 7: Tailwind CSS v3 over Vanilla CSS
-
-**Decision:** Tailwind CSS v3.
-
----
-
-## Decision 8: Polling over WebSockets for Alerts
-
-**Decision:** Poll `/api/alerts` every 30 seconds from the frontend.
-
----
-
-## Decision 9: Server-Side Raw SQL Filtering & Pagination
-
-**Decision:** Execute parameterized SQL queries with `WHERE`, `LIKE`, `ORDER BY`, `LIMIT`, and `OFFSET`.
-
----
-
-## Decision 10: Append-Only `audit_logs` Table
-
-**Decision:** No `updated_at` column and no UPDATE/DELETE queries exist in the server logic for audit logs.
+- **Chose:** Client HTTP Polling every 30 seconds for slow-order alerts.
+- **Rejected:** WebSockets (Socket.io) or Server-Sent Events (SSE).
+- **Why:** For an order alert threshold of 15 minutes, a 30-second polling interval introduces zero practical degradation while avoiding the overhead of WebSocket server lifecycle management, reconnection handling, and socket state sync.

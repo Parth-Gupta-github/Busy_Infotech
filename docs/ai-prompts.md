@@ -1,65 +1,65 @@
-# AI Prompts & Development Log
+# AI prompts
 
-This document records how AI assistance (Google Gemini via Antigravity IDE) was utilized during the development of the Restaurant Order Management System. It logs the prompts sent, initial outputs, missteps/bad suggestions, developer corrections, and verification steps.
+The prompts you actually used, in the order you used them, grouped by what you were trying to achieve. For each significant one: what you asked, what you got back, and what you had to correct.
 
----
+Include at least one prompt that produced something wrong, and what you did about it.
 
-## Log Entry 1: Project Setup & Architecture Scaffolding
+If you did not use AI at all, say so here, and describe your process instead.
 
-### Prompt Given:
-> "Read the assignment brief for Assignment 09 — Restaurant Orders. Help me design the architecture, select the tech stack, write the technical documentation, and lay out a 10-phase implementation plan."
+## Project Scaffolding & Architecture Selection
 
-### Initial AI Output & Analysis:
-The AI generated a full breakdown suggesting:
-1. Node.js + Express backend with **Prisma ORM** and **SQLite**.
+### Prompt
+"Read the assignment brief for Assignment 09 — Restaurant Orders. Help me design the architecture, select the tech stack, write the technical documentation, and lay out a 10-phase implementation plan."
+
+### What you got
+A detailed architectural breakdown recommending:
+1. Node.js + Express backend using **Prisma ORM** with **SQLite**.
 2. **Vanilla CSS** for frontend styling.
-3. standard JWT authentication and a 10-phase sequence.
+3. JWT-based authentication and a 10-phase build sequence.
 
-### Developer Evaluation & Corrections:
-- **Database Switch (SQLite/Prisma → Raw PostgreSQL):** I rejected the SQLite + Prisma recommendation. I have PostgreSQL/pgAdmin environment available and preferred direct **raw SQL (`pg` driver)** for explicit control over database DDL (`CREATE TABLE`, indexes, constraints) and query parameterization (`$1`, `$2`), avoiding ORM abstraction hiding.
-- **Styling Switch (Vanilla CSS → Tailwind CSS v3):** I rejected Vanilla CSS because writing raw CSS from scratch for 10 full pages/views within the time budget would be inefficient. Tailwind v3 allows rapid, consistent dark-mode styling.
-
----
-
-## Log Entry 2: Database Schema & Setup Scripting
-
-### Prompt Given:
-> "Generate a raw PostgreSQL schema.sql script containing all 7 tables (users, menu_items, orders, order_lines, order_collaborators, audit_logs, alert_acknowledgments) with proper ENUM types, CASCADE rules, price snapshot fields, and performance indexes. Also write a db.js connection module using pg.Pool and an init.js runner script."
-
-### Initial AI Output & Analysis:
-The AI generated the DDL script and `pg` pool helper.
-
-### Developer Verification & Edge Cases Checked:
-1. **Price Snapshot Verification:** Inspected `order_lines.price_at_add NUMERIC(10,2)` to ensure it stores the historical price at order time so menu price updates don't alter past totals.
-2. **Audit Trail Immutability:** Verified `audit_logs` has no `updated_at` column and that no `UPDATE`/`DELETE` queries are included in the application logic.
-3. **Collaborator Uniqueness:** Checked `CONSTRAINT unique_order_waiter UNIQUE(order_id, waiter_id)` to prevent duplicate collaborator rows at the DB constraint layer.
+### What you corrected
+- **Rejected Prisma ORM + SQLite:** I overrode this recommendation to use direct **Raw SQL with `pg` (node-postgres)** and Supabase PostgreSQL. This provides direct control over SQL DDL (`CREATE TABLE`, foreign key constraints, indexes) and parameterized query execution (`$1`, `$2`), avoiding ORM abstraction hiding.
+- **Rejected Vanilla CSS:** I changed the styling approach to **Tailwind CSS v3** to ensure fast, consistent, dark-mode component styling within the 12-hour budget.
 
 ---
 
-## Log Entry 3: Command & Environment Iteration
+## Database Schema Creation & Setup Scripting
 
-### Issue Encountered during Scaffolding:
-When attempting to run chained npm installation commands in PowerShell:
-```powershell
-npm install && npm install react-router-dom ...
-```
-The command failed with a parser error because `&&` is not valid in PowerShell standard syntax.
+### Prompt
+"Generate a raw PostgreSQL schema.sql script containing all 7 tables (users, menu_items, orders, order_lines, order_collaborators, audit_logs, alert_acknowledgments) with proper ENUM types, CASCADE rules, price snapshot fields, and performance indexes. Also write a db.js connection module using pg.Pool and an init.js runner script."
 
-### Solution Applied:
-Corrected the script calls to separate single-line execution statements in PowerShell:
-```powershell
-npm install react-router-dom lucide-react recharts
-npm install -D tailwindcss@3 postcss autoprefixer
-```
+### What you got
+Complete `server/db/schema.sql` script containing PostgreSQL DDL, `server/src/db.js` exporting `pg.Pool`, and `server/db/init.js`.
+
+### What you corrected
+- Verified `order_lines.price_at_add NUMERIC(10,2)` correctly captures historical prices when lines are added.
+- Confirmed `audit_logs` table has no `updated_at` column to ensure audit log immutability.
+- Checked `CONSTRAINT unique_order_waiter UNIQUE(order_id, waiter_id)` to prevent duplicate collaborator assignments at the database layer.
 
 ---
 
-## Log Entry 4: Seed Data & Frontend Init
+## Terminal Command Execution Issues
 
-### Prompt Given:
-> "Create a server/db/seed.js script to seed default users (1 Manager, 2 Waiters with bcrypt-hashed passwords) and initial menu items. Then scaffold the React client with Vite and Tailwind v3 configuration."
+### Prompt
+"Install frontend dependencies (react-router-dom, lucide-react, recharts, tailwindcss@3, postcss, autoprefixer) in client directory."
 
-### Review & Testing:
-- Verified `bcryptjs` password hashing works correctly in `seed.js` (`manager123`, `waiter123`).
-- Verified Tailwind v3 config includes `./index.html` and `./src/**/*.{js,ts,jsx,tsx}` content paths.
-- Verified dark theme base rules in `client/src/index.css`.
+### What you got
+An attempted chained command execution (`npm install && npm install react-router-dom ...`) which threw a parser syntax error in PowerShell (`The token '&&' is not a valid statement separator`).
+
+### What you corrected
+Split the execution into separate single-command statements compatible with PowerShell environment syntax:
+1. `npm install react-router-dom lucide-react recharts`
+2. `npm install -D tailwindcss@3 postcss autoprefixer`
+
+---
+
+## Seed Data Scripting
+
+### Prompt
+"Write a server/db/seed.js script to populate demo users (1 Manager, 2 Waiters with bcrypt password hashing) and default menu items into PostgreSQL."
+
+### What you got
+`server/db/seed.js` script using `bcrypt.hash()` for credentials (`manager123`, `waiter123`) and parameterized SQL `INSERT ON CONFLICT DO NOTHING` for menu items.
+
+### What you corrected
+Verified that password hashing was generated asynchronously before inserting user rows and confirmed ON CONFLICT behavior to prevent duplicate seed errors when running repeatedly.

@@ -1,166 +1,112 @@
-# Database Schema Design (Raw PostgreSQL)
+# Schema
 
-## Overview
+## Table by table: what columns and types does each one have?
 
-The database uses **PostgreSQL** (hosted on Supabase) with **7 tables** defined via raw SQL DDL script (`server/db/schema.sql`).
+### 1. `users`
+- `id` (VARCHAR(36), Primary Key, default UUID)
+- `email` (VARCHAR(255), Unique, Not Null) — sign-in email
+- `password` (VARCHAR(255), Not Null) — bcrypt-hashed password
+- `name` (VARCHAR(255), Not Null) — user's name
+- `role` (`role_enum`: 'MANAGER' | 'WAITER', Not Null)
+- `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
+- `updated_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 
-Key design principles:
-- **Referential integrity** — foreign keys with cascade rules (`ON DELETE CASCADE`)
-- **Monetary precision** — prices stored as `NUMERIC(10, 2)`, never floating point
-- **Immutable audit trail** — `audit_logs` has no `updated_at` column and no UPDATE/DELETE queries exist in the app
-- **Soft deletes** — `archived` boolean flags instead of physical deletion
-- **Price snapshots** — `order_lines` captures `price_at_add` when line items are added
+### 2. `menu_items`
+- `id` (VARCHAR(36), Primary Key, default UUID)
+- `name` (VARCHAR(255), Not Null) — dish name
+- `price` (NUMERIC(10, 2), Not Null) — price
+- `available` (BOOLEAN, Default true) — whether item is in stock
+- `archived` (BOOLEAN, Default false) — soft delete flag
+- `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
+- `updated_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 
-## Entity-Relationship Diagram
+### 3. `orders`
+- `id` (VARCHAR(36), Primary Key, default UUID)
+- `table_number` (INT, Not Null) — table number
+- `status` (`order_status_enum`: 'PLACED' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED')
+- `archived` (BOOLEAN, Default false) — soft delete flag
+- `primary_waiter_id` (VARCHAR(36), Foreign Key → `users.id`)
+- `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
+- `updated_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 
-```
-┌──────────────────┐         ┌──────────────────────┐
-│      users       │         │     menu_items       │
-├──────────────────┤         ├──────────────────────┤
-│ id       (PK)    │         │ id         (PK)      │
-│ email    (unique)│         │ name                 │
-│ password (hashed)│         │ price      (NUMERIC) │
-│ name             │         │ available  (bool)    │
-│ role     (enum)  │         │ archived   (bool)    │
-│ created_at       │         │ created_at           │
-│ updated_at       │         │ updated_at           │
-└──────┬───────────┘         └──────────┬───────────┘
-       │                                │
-       │ 1:many                         │ 1:many
-       │                                │
-       ▼                                ▼
-┌──────────────────────┐     ┌──────────────────────┐
-│       orders         │     │     order_lines      │
-├──────────────────────┤     ├──────────────────────┤
-│ id           (PK)    │◀───▶│ id             (PK)  │
-│ table_number         │  1:N│ order_id       (FK)  │
-│ status       (enum)  │     │ menu_item_id   (FK)  │
-│ archived     (bool)  │     │ quantity             │
-│ primary_waiter_id(FK)│     │ special_instructions │
-│ created_at           │     │ price_at_add (NUMERIC│
-│ updated_at           │     │ voided       (bool)  │
-└──────┬───────────────┘     │ void_reason          │
-       │                     │ created_at           │
-       │                     │ updated_at           │
-       │                     └──────────────────────┘
-       │
-       │ 1:many
-       ▼
-┌──────────────────────────┐
-│   order_collaborators    │
-├──────────────────────────┤
-│ id         (PK)          │
-│ order_id   (FK)          │
-│ waiter_id  (FK)          │
-│ created_at               │
-│                          │
-│ UNIQUE(order_id,waiter_id│
-└──────────────────────────┘
+### 4. `order_lines`
+- `id` (VARCHAR(36), Primary Key, default UUID)
+- `order_id` (VARCHAR(36), Foreign Key → `orders.id`)
+- `menu_item_id` (VARCHAR(36), Foreign Key → `menu_items.id`)
+- `quantity` (INT, Not Null, CHECK quantity > 0)
+- `special_instructions` (TEXT, Nullable)
+- `price_at_add` (NUMERIC(10, 2), Not Null) — snapshot of price when added
+- `voided` (BOOLEAN, Default false)
+- `void_reason` (TEXT, Nullable)
+- `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
+- `updated_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 
-┌──────────────────────────┐     ┌──────────────────────────┐
-│       audit_logs         │     │   alert_acknowledgments  │
-├──────────────────────────┤     ├──────────────────────────┤
-│ id         (PK)          │     │ id             (PK)      │
-│ order_id   (FK)          │     │ order_id       (FK)      │
-│ user_id    (FK)          │     │ user_id        (FK)      │
-│ action     (enum)        │     │ acknowledged_at          │
-│ old_status (enum, null)  │     └──────────────────────────┘
-│ new_status (enum, null)  │
-│ details    (JSONB, null) │
-│ created_at               │
-│                          │
-│ ⚠ NO updated_at          │
-│ ⚠ NO delete queries      │
-└──────────────────────────┘
-```
+### 5. `order_collaborators`
+- `id` (VARCHAR(36), Primary Key, default UUID)
+- `order_id` (VARCHAR(36), Foreign Key → `orders.id`)
+- `waiter_id` (VARCHAR(36), Foreign Key → `users.id`)
+- `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
+- Unique constraint: `UNIQUE(order_id, waiter_id)`
 
-## Raw SQL DDL (`schema.sql`)
+### 6. `audit_logs` (Immutable)
+- `id` (VARCHAR(36), Primary Key, default UUID)
+- `order_id` (VARCHAR(36), Foreign Key → `orders.id`)
+- `user_id` (VARCHAR(36), Foreign Key → `users.id`)
+- `action` (`audit_action_enum`: 'ORDER_CREATED' | 'STATUS_CHANGED' | 'LINE_ADDED' | 'LINE_VOIDED' | 'COLLABORATOR_ADDED' | 'COLLABORATOR_REMOVED' | 'NOTE_ADDED' | 'ORDER_ARCHIVED' | 'ORDER_RESTORED')
+- `old_status` (`order_status_enum`, Nullable)
+- `new_status` (`order_status_enum`, Nullable)
+- `details` (JSONB, Nullable)
+- `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
+- *(Deliberately no `updated_at` column)*
 
-```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+### 7. `alert_acknowledgments`
+- `id` (VARCHAR(36), Primary Key, default UUID)
+- `order_id` (VARCHAR(36), Foreign Key → `orders.id`)
+- `user_id` (VARCHAR(36), Foreign Key → `users.id`)
+- `acknowledged_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 
-CREATE TYPE role_enum AS ENUM ('MANAGER', 'WAITER');
-CREATE TYPE order_status_enum AS ENUM ('PLACED', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'CANCELLED');
-CREATE TYPE audit_action_enum AS ENUM (
-    'ORDER_CREATED', 'STATUS_CHANGED', 'LINE_ADDED', 'LINE_VOIDED', 
-    'COLLABORATOR_ADDED', 'COLLABORATOR_REMOVED', 'NOTE_ADDED', 
-    'ORDER_ARCHIVED', 'ORDER_RESTORED'
-);
+---
 
-CREATE TABLE users (
-    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    role role_enum NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+## Which relationships are one-to-many, and which are many-to-many?
 
-CREATE TABLE menu_items (
-    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    name VARCHAR(255) NOT NULL,
-    price NUMERIC(10, 2) NOT NULL,
-    available BOOLEAN NOT NULL DEFAULT true,
-    archived BOOLEAN NOT NULL DEFAULT false,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+- **One-to-Many:**
+  - `users` → `orders` (One primary waiter creates many orders)
+  - `orders` → `order_lines` (One order contains many order lines)
+  - `menu_items` → `order_lines` (One menu item appears on many order lines)
+  - `orders` → `audit_logs` (One order has many timeline log entries)
+  - `orders` → `alert_acknowledgments` (One order can have multiple alert acknowledgments over time)
 
-CREATE TABLE orders (
-    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    table_number INT NOT NULL,
-    status order_status_enum NOT NULL DEFAULT 'PLACED',
-    archived BOOLEAN NOT NULL DEFAULT false,
-    primary_waiter_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+- **Many-to-Many:**
+  - `users` ↔ `orders` via `order_collaborators` (A waiter can collaborate on many orders, and an order can have many collaborating waiters).
 
-CREATE TABLE order_lines (
-    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    order_id VARCHAR(36) NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    menu_item_id VARCHAR(36) NOT NULL REFERENCES menu_items(id),
-    quantity INT NOT NULL CHECK (quantity > 0),
-    special_instructions TEXT,
-    price_at_add NUMERIC(10, 2) NOT NULL,
-    voided BOOLEAN NOT NULL DEFAULT false,
-    void_reason TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+---
 
-CREATE TABLE order_collaborators (
-    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    order_id VARCHAR(36) NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    waiter_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT unique_order_waiter UNIQUE(order_id, waiter_id)
-);
+## Which constraints are enforced by the database, and which by application code — and why did you draw the line there?
 
-CREATE TABLE audit_logs (
-    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    order_id VARCHAR(36) NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id),
-    action audit_action_enum NOT NULL,
-    old_status order_status_enum,
-    new_status order_status_enum,
-    details JSONB,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+- **Enforced by Database:**
+  - `UNIQUE(email)` on `users` — hard guarantee against duplicate accounts.
+  - `UNIQUE(order_id, waiter_id)` on `order_collaborators` — database prevents duplicate waiter assignments even if concurrent requests race.
+  - `CHECK (quantity > 0)` on `order_lines` — guards against zero or negative item quantities.
+  - Foreign key cascades (`ON DELETE CASCADE`) — maintains referential integrity.
+  - Data types (`NUMERIC(10, 2)`, ENUMs) — prevents invalid money formats or bogus status values.
 
-CREATE TABLE alert_acknowledgments (
-    id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    order_id VARCHAR(36) NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    user_id VARCHAR(36) NOT NULL REFERENCES users(id),
-    acknowledged_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+- **Enforced by Application Code:**
+  - **Lifecycle state transitions** (e.g. `PREPARING → CANCELLED` rejected) — Business workflow rules belong in service code where error messages can explain *why* the move was rejected.
+  - **Voiding line items requirement** (mandatory `void_reason` when `voided = true`) — Complex conditional rule checks are cleaner in application code.
+  - **Role permissions** (Waiters cannot modify menu or act on uncollaborated orders) — Application layer inspects JWT role and ownership context before executing queries.
 
--- Performance Indexes
-CREATE INDEX idx_orders_status ON orders(status);
-CREATE INDEX idx_orders_primary_waiter ON orders(primary_waiter_id);
-CREATE INDEX idx_orders_created_at ON orders(created_at);
-CREATE INDEX idx_orders_table_number ON orders(table_number);
-CREATE INDEX idx_order_lines_order_id ON order_lines(order_id);
-CREATE INDEX idx_audit_logs_order_id ON audit_logs(order_id);
-```
+---
+
+## What did you deliberately denormalise?
+
+- **`order_lines.price_at_add`:** We explicitly copy `menu_items.price` into `order_lines.price_at_add` at the exact moment a line is created. While technically duplicating price data, this is necessary so that subsequent menu price changes by a manager do not retroactively alter the total of past or active orders.
+
+---
+
+## What would break first if this had 100x the data?
+
+1. **Slow-Order Alert Polling Query (`/api/alerts`):**  
+   Scanning all active orders and joining with `alert_acknowledgments` to check timestamps every 30 seconds across thousands of concurrent orders would stress PostgreSQL CPU. We created an index on `orders(status, created_at)`, but at 100x data scale, this query would need Redis caching or materialized views.
+
+2. **Unpaginated Aggregations on 14-Day Dashboard Charts:**  
+   Calculating 14-day daily served trends requires scanning historical `orders` rows. With millions of orders, this should be pre-aggregated into a daily summary analytics table instead of live `COUNT()` group-by queries.
