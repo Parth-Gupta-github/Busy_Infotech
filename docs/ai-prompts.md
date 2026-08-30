@@ -18,7 +18,7 @@ A detailed architectural breakdown recommending:
 3. JWT-based authentication and a 10-phase build sequence.
 
 ### What you corrected
-- **Rejected Prisma ORM + SQLite:** I overrode this recommendation to use direct **Raw SQL with `pg` (node-postgres)** and Supabase PostgreSQL. This provides direct control over SQL DDL (`CREATE TABLE`, foreign key constraints, indexes) and parameterized query execution (`$1`, `$2`), avoiding ORM abstraction hiding.
+- **Rejected Prisma ORM + SQLite:** I overrode this recommendation to use direct **Raw SQL with `pg` (node-postgres)** and Supabase/Neon PostgreSQL. This provides direct control over SQL DDL (`CREATE TABLE`, foreign key constraints, indexes) and parameterized query execution (`$1`, `$2`), avoiding ORM abstraction hiding.
 - **Rejected Vanilla CSS:** I changed the styling approach to **Tailwind CSS v3** to ensure fast, consistent, dark-mode component styling within the 12-hour budget.
 
 ---
@@ -59,10 +59,11 @@ Split the execution into separate single-command statements compatible with Powe
 "Write a server/db/seed.js script to populate demo users (1 Manager, 2 Waiters with bcrypt password hashing) and default menu items into PostgreSQL."
 
 ### What you got
-`server/db/seed.js` script using `bcrypt.hash()` for credentials (`manager123`, `waiter123`) and parameterized SQL `INSERT ON CONFLICT DO NOTHING` for menu items.
+`server/db/seed.js` script using `bcrypt.hash()` for credentials (`manager123`, `waiter123`) and parameterized SQL for menu items.
 
 ### What you corrected
-Verified that password hashing was generated asynchronously before inserting user rows and confirmed ON CONFLICT behavior to prevent duplicate seed errors when running repeatedly.
+- Verified that password hashing was generated asynchronously before inserting user rows.
+- Fixed SQL conflict handling on `menu_items` re-seeding to use clean deletion before re-inserting default dishes with Indian Rupee (₹) prices.
 
 ---
 
@@ -78,3 +79,17 @@ Complete authentication implementation across `server/src/middleware/auth.js`, `
 - **Server-Side Enforcement Check:** Verified that `roleCheck.js` returns HTTP 403 Forbidden on unauthorized roles at the middleware layer before business logic executes, satisfying Goal 1's requirement that role separation is server-enforced, not just hidden in the UI.
 - **Password Hash Safety:** Ensured `delete user.password` is called in `authService.login()` before returning user data, so password hashes are never leaked over network responses.
 - **Token Persistence:** Verified that `AuthContext.jsx` restores session user profiles from `GET /api/auth/me` on initial render if a valid JWT token exists in `localStorage`.
+
+---
+
+## Menu Management & Bulk Actions Implementation (Phase 3)
+
+### Prompt
+"Build Phase 3 Menu Management & Bulk Actions: raw SQL menu service (menuService.js), Express router (routes/menu.js) with requireRole('MANAGER') enforcement, bulk update endpoint with per-item pass/fail reporting, inline table price editing, clickable availability toggles, sticky bottom action bar, and execution report modal."
+
+### What you got
+Complete menu service, routes, and `MenuPage.jsx` component supporting inline table price edits, clickable availability status badges, sticky action bar, and per-item bulk results report modal.
+
+### What you corrected
+- **Per-Item Error Reporting:** Ensured `bulkUpdateMenuItems` in `menuService.js` processes items individually in a `try...catch` loop so invalid items (e.g. negative prices `₹-5.00`) report explicit failure reasons (`"Rejected price ₹-5: price cannot be negative."`) without crashing or rolling back the rest of the batch.
+- **Currency Standardization:** Updated default seed prices, error messages, and frontend UI components to use Indian Rupees (₹).

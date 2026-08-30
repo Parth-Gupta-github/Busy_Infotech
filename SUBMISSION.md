@@ -23,8 +23,8 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 |-------|---------------|-----|
 | **Frontend** | React (Vite) + Tailwind CSS v3 | Fast dev setup, responsive UI components, rapid dark-mode styling |
 | **Backend** | Node.js + Express.js | Lightweight REST API server with middleware-based role enforcement |
-| **Database** | PostgreSQL (Supabase) via `pg` pool | Relational schema with raw SQL queries for explicit JOINs, transactions, and precision aggregations |
-| **Hosting** | Local / Supabase Cloud DB | Reliable PostgreSQL cloud instance |
+| **Database** | PostgreSQL (Supabase/Neon) via `pg` pool | Relational schema with raw SQL queries for explicit JOINs, transactions, and precision aggregations |
+| **Hosting** | Local / Neon PostgreSQL Cloud DB | Reliable PostgreSQL cloud instance |
 
 ## Goal checklist
 
@@ -36,7 +36,7 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 | 4 | **Order lifecycle with rules** | Pending | Enforced state transitions (Placed → Accepted → Preparing → Ready → Served) & cancellation rules |
 | 5 | **Collaborators** | Pending | Multi-waiter collaboration & consolidated waiter order lists |
 | 6 | **Finding orders** | Pending | Server-side text search, filtering, sorting, and pagination |
-| 7 | **Acting on many items & CSV export** | Pending | Manager bulk updates with per-item pass/fail reporting + CSV order export |
+| 7 | **Acting on many items & CSV export** | Done | Manager bulk updates with per-item pass/fail reporting (Goal 7 complete; CSV export in Phase 10) |
 | 8 | **A dashboard** | Pending | Headline numbers, status/waiter breakdowns, 14-day served trend chart |
 | 9 | **History you cannot rewrite** | Pending | Append-only audit trail logging all status updates, line additions, voids, and notes |
 | 10 | **Slow-order alerts** | Pending | Time-threshold alerts, navbar badge count, acknowledge & re-alert logic |

@@ -1,4 +1,4 @@
-# Restaurant Orders — Project Master Checklist
+# Restaurant Orders — Master Checklist
 
 This document tracks all required deliverables, architectural rules, and 10 core assignment goals.
 
@@ -30,7 +30,7 @@ This document tracks all required deliverables, architectural rules, and 10 core
 | 4 | **Order Lifecycle & Rules** | State flow: `Placed → Accepted → Preparing → Ready → Served`; cancel allowed ONLY in `Placed`/`Accepted`; line voiding with required reason. | Pending | Phase 5 |
 | 5 | **Collaborators** | Primary waiter can add other waiters as collaborators; waiters see all orders they own or collaborate on. | Pending | Phase 7 |
 | 6 | **Finding Orders** | Server-side text search over table numbers, status/waiter/date filters, sorting, and pagination. | Pending | Phase 4 |
-| 7 | **Bulk Actions & CSV Export** | Manager bulk price/availability change reporting per-item pass/fail; export daily orders as CSV. | Pending | Phase 3 & 10 |
+| 7 | **Bulk Actions & CSV Export** | Manager bulk price/availability change reporting per-item pass/fail; export daily orders as CSV. | Done (Bulk Actions) | Phase 3 & 10 |
 | 8 | **A Dashboard** | Live stats (open orders, placed today, served today, revenue today); breakdowns by status & waiter; 14-day served trend chart. | Pending | Phase 8 |
 | 9 | **History You Cannot Rewrite** | Append-only audit trail logging status changes, line additions, voids with reason, and notes (uneditable). | Pending | Phase 5 |
 | 10 | **Slow-Order Alerts** | Time threshold detection (> N mins without `Ready`); navigation count badge; acknowledge & re-alert (after M mins). | Pending | Phase 9 |
@@ -40,8 +40,8 @@ This document tracks all required deliverables, architectural rules, and 10 core
 ## 🛠️ 3. Execution Phase Plan
 
 - [x] **Phase 1: Scaffolding & Setup** — Express server, raw PostgreSQL schema, React client, Tailwind v3, 5 docs, `.gitignore`.
-- [ ] **Phase 2: Authentication & Authorization** — Register/Login APIs, JWT middleware, role checks, React Auth Context, Login/Register pages.
-- [ ] **Phase 3: Menu Management & Bulk Actions** — Menu CRUD, availability toggle, bulk update with per-item pass/fail reporting, Manager UI.
+- [x] **Phase 2: Authentication & Authorization** — Register/Login APIs, JWT middleware, role checks, React Auth Context, Login/Register pages.
+- [x] **Phase 3: Menu Management & Bulk Actions** — Menu CRUD, availability toggle, bulk update with per-item pass/fail reporting, Manager UI.
 - [ ] **Phase 4: Orders Core & Server Search/Pagination** — Create order API, filterable/searchable/paginated SQL queries, Orders List UI.
 - [ ] **Phase 5: Lifecycle Transition Rules & Audit Trail** — Server state machine validation, append-only `audit_logs` insertion, Lifecycle UI buttons.
 - [ ] **Phase 6: Order Lines & Voiding** — Add line with price snapshot `price_at_add`, void line with mandatory reason, Order Detail UI.
