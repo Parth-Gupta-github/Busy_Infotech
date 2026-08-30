@@ -31,11 +31,11 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 | # | Goal | Status | Notes |
 |---|------|--------|-------|
 | 1 | **Accounts and roles** | Done | Email/password login with JWT. Server-enforced `MANAGER` & `WAITER` role permissions via middleware (`roleCheck.js`). |
-| 2 | **Orders** | Pending | Primary waiter tracking, table numbers, archive/restore |
-| 3 | **Order lines** | Pending | Price snapshot (`price_at_add`), quantity, special instructions, server running total |
+| 2 | **Orders** | Done | Creator automatically set as primary waiter, table numbers, archive/restore. |
+| 3 | **Order lines** | Done | Price snapshot (`price_at_add`), quantities, dish special instructions, server-calculated running total. |
 | 4 | **Order lifecycle with rules** | Pending | Enforced state transitions (Placed → Accepted → Preparing → Ready → Served) & cancellation rules |
 | 5 | **Collaborators** | Pending | Multi-waiter collaboration & consolidated waiter order lists |
-| 6 | **Finding orders** | Pending | Server-side text search, filtering, sorting, and pagination |
+| 6 | **Finding orders** | Done | Server-side text search (`ILIKE`), status & waiter filters, sorting, and `LIMIT/OFFSET` pagination. |
 | 7 | **Acting on many items & CSV export** | Done | Manager bulk updates with per-item pass/fail reporting (Goal 7 complete; CSV export in Phase 10) |
 | 8 | **A dashboard** | Pending | Headline numbers, status/waiter breakdowns, 14-day served trend chart |
 | 9 | **History you cannot rewrite** | Pending | Append-only audit trail logging all status updates, line additions, voids, and notes |

@@ -93,3 +93,18 @@ Complete menu service, routes, and `MenuPage.jsx` component supporting inline ta
 ### What you corrected
 - **Per-Item Error Reporting:** Ensured `bulkUpdateMenuItems` in `menuService.js` processes items individually in a `try...catch` loop so invalid items (e.g. negative prices `₹-5.00`) report explicit failure reasons (`"Rejected price ₹-5: price cannot be negative."`) without crashing or rolling back the rest of the batch.
 - **Currency Standardization:** Updated default seed prices, error messages, and frontend UI components to use Indian Rupees (₹).
+
+---
+
+## Orders Core, Order Lines & Server Search/Pagination (Phase 4)
+
+### Prompt
+"Build Phase 4 Orders Core & Server Search/Pagination: raw SQL order service (orderService.js), Express router (routes/orders.js), order creation with menu item line picker, price snapshot (price_at_add), special instructions, server-side ILIKE search, status filters, PostgreSQL LIMIT/OFFSET pagination, and OrdersPage.jsx UI."
+
+### What you got
+Complete order service, order routes, and `OrdersPage.jsx` component supporting order creation, menu dish selection, dish-specific special instructions, price snapshots, server-side text search, status tabs, and order details modal.
+
+### What you corrected
+- **Connection Checkout Fix:** Replaced `pool.getClient()` in `server/src/db.js` with `pool.connect()` (the correct native `node-postgres` method) to fix transactional client checkout for multi-query `BEGIN / COMMIT` transactions.
+- **Schema Column Type Patch:** Executed `patch_schema.js` to alter `orders.table_number` column to `VARCHAR(255)` in PostgreSQL so table identifiers like `"Table 4"` or `"Bar 1"` are accepted without integer type errors.
+- **Goal #3 Price Snapshot Enforcement:** Verified that `createOrder` queries `menu_items.price` at insertion time and writes it directly to `order_lines.price_at_add`, preserving historical item pricing even if menu prices change later.

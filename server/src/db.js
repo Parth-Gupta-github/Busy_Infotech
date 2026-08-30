@@ -24,7 +24,7 @@ module.exports = {
   /**
    * Get a client from pool for multi-query transaction
    */
-  getClient: () => pool.getClient(),
+  getClient: () => pool.connect(),
 
   pool
 };
