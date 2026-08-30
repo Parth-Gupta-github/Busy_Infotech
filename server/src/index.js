@@ -14,8 +14,8 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// ─── Routes (will be added incrementally) ────────────────────────
-// app.use('/api/auth', require('./routes/auth'));
+// ─── Routes ───────────────────────────────────────────────────────
+app.use('/api/auth', require('./routes/auth'));
 // app.use('/api/menu', require('./routes/menu'));
 // app.use('/api/orders', require('./routes/orders'));
 // app.use('/api/dashboard', require('./routes/dashboard'));

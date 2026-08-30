@@ -24,7 +24,7 @@ This document tracks all required deliverables, architectural rules, and 10 core
 
 | # | Goal | Key Requirements | Status | Phase |
 |---|------|------------------|--------|-------|
-| 1 | **Accounts & Roles** | Email/password sign-in; `MANAGER` & `WAITER` roles; server-enforced permissions (waiters cannot touch menu or unauthorized orders). | In Progress | Phase 2 |
+| 1 | **Accounts & Roles** | Email/password sign-in; `MANAGER` & `WAITER` roles; server-enforced permissions (waiters cannot touch menu or unauthorized orders). | Done | Phase 2 |
 | 2 | **Orders** | Table number identifier; creator becomes primary waiter; archive & restore functionality preserving history. | Pending | Phase 4 |
 | 3 | **Order Lines** | Quantity, menu item, special instructions; price snapshot `price_at_add`; server-calculated running total. | Pending | Phase 6 |
 | 4 | **Order Lifecycle & Rules** | State flow: `Placed → Accepted → Preparing → Ready → Served`; cancel allowed ONLY in `Placed`/`Accepted`; line voiding with required reason. | Pending | Phase 5 |

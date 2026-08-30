@@ -30,7 +30,7 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 
 | # | Goal | Status | Notes |
 |---|------|--------|-------|
-| 1 | **Accounts and roles** | In Progress | Auth endpoints & JWT role-enforcement middleware being implemented |
+| 1 | **Accounts and roles** | Done | Email/password login with JWT. Server-enforced `MANAGER` & `WAITER` role permissions via middleware (`roleCheck.js`). |
 | 2 | **Orders** | Pending | Primary waiter tracking, table numbers, archive/restore |
 | 3 | **Order lines** | Pending | Price snapshot (`price_at_add`), quantity, special instructions, server running total |
 | 4 | **Order lifecycle with rules** | Pending | Enforced state transitions (Placed → Accepted → Preparing → Ready → Served) & cancellation rules |

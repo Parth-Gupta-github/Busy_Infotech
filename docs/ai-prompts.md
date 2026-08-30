@@ -63,3 +63,18 @@ Split the execution into separate single-command statements compatible with Powe
 
 ### What you corrected
 Verified that password hashing was generated asynchronously before inserting user rows and confirmed ON CONFLICT behavior to prevent duplicate seed errors when running repeatedly.
+
+---
+
+## Authentication & Role Enforcement Implementation (Phase 2)
+
+### Prompt
+"Build Phase 2 authentication: JWT verification middleware, server-enforced role checking middleware (requireRole('MANAGER')), auth service with bcrypt hashing and raw SQL user queries, Express routes (/api/auth/register, /api/auth/login, /api/auth/me), React AuthContext, ProtectedRoute component, and dark-mode Login/Register pages."
+
+### What you got
+Complete authentication implementation across `server/src/middleware/auth.js`, `server/src/middleware/roleCheck.js`, `server/src/services/authService.js`, `server/src/routes/auth.js`, `client/src/context/AuthContext.jsx`, `client/src/components/ProtectedRoute.jsx`, `client/src/pages/LoginPage.jsx`, and `client/src/pages/RegisterPage.jsx`.
+
+### What you corrected
+- **Server-Side Enforcement Check:** Verified that `roleCheck.js` returns HTTP 403 Forbidden on unauthorized roles at the middleware layer before business logic executes, satisfying Goal 1's requirement that role separation is server-enforced, not just hidden in the UI.
+- **Password Hash Safety:** Ensured `delete user.password` is called in `authService.login()` before returning user data, so password hashes are never leaked over network responses.
+- **Token Persistence:** Verified that `AuthContext.jsx` restores session user profiles from `GET /api/auth/me` on initial render if a valid JWT token exists in `localStorage`.
