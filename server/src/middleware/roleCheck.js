@@ -1,26 +1,23 @@
-/**
- * Role-Based Access Control (RBAC) Middleware Factory
- * Enforces server-side permissions based on user roles (MANAGER vs WAITER)
- * 
- * Usage:
- *   router.post('/menu', authenticateToken, requireRole('MANAGER'), handleCreateMenuItem);
- */
+// Role checking middleware factory
 function requireRole(...allowedRoles) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Authentication required.' });
-    }
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ error: 'Authentication required.' });
+        }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        error: `Access denied. Action requires one of the following roles: ${allowedRoles.join(', ')}. Your role is ${req.user.role}.`
-      });
-    }
+        const userRole = req.user.role ? req.user.role.toUpperCase() : '';
+        const hasRole = allowedRoles.some(r => r.toUpperCase() === userRole);
 
-    next();
-  };
+        if (!hasRole) {
+            return res.status(403).json({
+                error: `Access denied. Requires one of roles: [${allowedRoles.join(', ')}].`
+            });
+        }
+
+        next();
+    };
 }
 
 module.exports = {
-  requireRole
+    requireRole
 };

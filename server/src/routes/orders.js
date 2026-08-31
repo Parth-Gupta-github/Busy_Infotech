@@ -6,7 +6,7 @@ const { requireRole } = require('../middleware/roleCheck');
 
 const router = express.Router();
 
-// Input validation error handler helper
+// Input validation error handler
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -15,11 +15,7 @@ const validate = (req, res, next) => {
   next();
 };
 
-/**
- * POST /api/orders
- * Create a new order with optional menu item lines (Goal #2 & Goal #3)
- * Creator (req.user.id) automatically becomes primary waiter
- */
+// Create a new order
 router.post(
   '/',
   authenticateToken,
@@ -34,7 +30,7 @@ router.post(
       const newOrder = await orderService.createOrder({
         table_number: req.body.table_number,
         notes: req.body.notes,
-        created_by_id: req.user.id, // Logged-in user ID
+        created_by_id: req.user.id,
         items: req.body.items || []
       });
       res.status(201).json(newOrder);
@@ -44,10 +40,33 @@ router.post(
   }
 );
 
-/**
- * GET /api/orders
- * List paginated & filtered orders (Goal #6)
- */
+// Add a new dish line to an existing active order (Goal #3)
+router.post(
+  '/:id/lines',
+  authenticateToken,
+  [
+    body('menu_item_id').trim().notEmpty().withMessage('Menu item ID is required.'),
+    body('quantity').optional().isInt({ min: 1 }).toInt(),
+    body('special_instructions').optional().trim(),
+    validate
+  ],
+  async (req, res, next) => {
+    try {
+      const updatedOrder = await orderService.addOrderLine({
+        order_id: req.params.id,
+        menu_item_id: req.body.menu_item_id,
+        quantity: req.body.quantity || 1,
+        special_instructions: req.body.special_instructions,
+        actor_id: req.user.id
+      });
+      res.json(updatedOrder);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// List paginated and filtered orders
 router.get(
   '/',
   authenticateToken,
@@ -80,10 +99,7 @@ router.get(
   }
 );
 
-/**
- * GET /api/orders/:id
- * Get single order by ID with order line details
- */
+// Get single order by ID
 router.get('/:id', authenticateToken, async (req, res, next) => {
   try {
     const order = await orderService.getOrderById(req.params.id);
@@ -93,10 +109,39 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
   }
 });
 
-/**
- * PATCH /api/orders/:id/archive
- * Soft-delete (archive) or restore an order (MANAGER ONLY)
- */
+// Update order status enforcing state machine rules
+router.patch(
+  '/:id/status',
+  authenticateToken,
+  [
+    body('status').trim().notEmpty().withMessage('Status is required.'),
+    validate
+  ],
+  async (req, res, next) => {
+    try {
+      const updatedOrder = await orderService.updateOrderStatus(
+        req.params.id,
+        req.body.status,
+        req.user.id
+      );
+      res.json(updatedOrder);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// Get order audit log history
+router.get('/:id/audit', authenticateToken, async (req, res, next) => {
+  try {
+    const logs = await orderService.getOrderAuditLogs(req.params.id);
+    res.json(logs);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Soft-delete (archive) or restore an order (Manager Only)
 router.patch(
   '/:id/archive',
   authenticateToken,

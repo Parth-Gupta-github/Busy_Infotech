@@ -1,106 +1,104 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
-const { JWT_SECRET } = require('../middleware/auth');
 
-/**
- * Register a new user account (MANAGER or WAITER)
- */
-async function register({ email, password, name, role }) {
-  // 1. Check if email already exists
-  const existingUserRes = await db.query(
-    'SELECT id FROM users WHERE email = $1',
-    [email.toLowerCase().trim()]
-  );
+const JWT_SECRET = process.env.JWT_SECRET || 'restaurant_secret_jwt_key_2026';
+const JWT_EXPIRES_IN = '24h';
 
-  if (existingUserRes.rowCount > 0) {
-    const error = new Error('An account with this email address already exists.');
-    error.status = 400;
-    throw error;
-  }
+// Register a new user
+async function registerUser({ email, password, name, role }) {
+    if (!email || !password || !name || !role) {
+        const error = new Error('All fields (email, password, name, role) are required.');
+        error.status = 400;
+        throw error;
+    }
 
-  // 2. Hash password securely
-  const hashedPassword = await bcrypt.hash(password, 10);
+    const normalizedRole = role.toUpperCase();
+    if (!['MANAGER', 'WAITER'].includes(normalizedRole)) {
+        const error = new Error('Role must be either MANAGER or WAITER.');
+        error.status = 400;
+        throw error;
+    }
 
-  // 3. Insert new user into database
-  const insertRes = await db.query(
-    `INSERT INTO users (email, password, name, role)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id, email, name, role, created_at`,
-    [email.toLowerCase().trim(), hashedPassword, name.trim(), role]
-  );
+    const existingUser = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    if (existingUser.rowCount > 0) {
+        const error = new Error('User with this email already exists.');
+        error.status = 409;
+        throw error;
+    }
 
-  const user = insertRes.rows[0];
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-  // 4. Generate JWT token
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name },
-    JWT_SECRET,
-    { expiresIn: '24h' }
-  );
+    const result = await db.query(
+        `INSERT INTO users (email, password, name, role)
+         VALUES ($1, $2, $3, $4)
+         RETURNING id, email, name, role, created_at`,
+        [email.toLowerCase().trim(), hashedPassword, name.trim(), normalizedRole]
+    );
 
-  return { user, token };
+    const user = result.rows[0];
+    const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role, name: user.name },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    return { user, token };
 }
 
-/**
- * Authenticate a user with email and password
- */
-async function login({ email, password }) {
-  // 1. Look up user by email
-  const userRes = await db.query(
-    'SELECT id, email, password, name, role, created_at FROM users WHERE email = $1',
-    [email.toLowerCase().trim()]
-  );
+// Authenticate user login
+async function loginUser({ email, password }) {
+    if (!email || !password) {
+        const error = new Error('Email and password are required.');
+        error.status = 400;
+        throw error;
+    }
 
-  if (userRes.rowCount === 0) {
-    const error = new Error('Invalid email or password.');
-    error.status = 401;
-    throw error;
-  }
+    const result = await db.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase().trim()]);
+    if (result.rowCount === 0) {
+        const error = new Error('Invalid email or password.');
+        error.status = 401;
+        throw error;
+    }
 
-  const user = userRes.rows[0];
+    const user = result.rows[0];
 
-  // 2. Compare password hash
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    const error = new Error('Invalid email or password.');
-    error.status = 401;
-    throw error;
-  }
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+        const error = new Error('Invalid email or password.');
+        error.status = 401;
+        throw error;
+    }
 
-  // Remove password hash from returned user object
-  delete user.password;
+    delete user.password;
 
-  // 3. Generate JWT token
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name },
-    JWT_SECRET,
-    { expiresIn: '24h' }
-  );
+    const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role, name: user.name },
+        JWT_SECRET,
+        { expiresIn: JWT_EXPIRES_IN }
+    );
 
-  return { user, token };
+    return { user, token };
 }
 
-/**
- * Fetch profile for authenticated user
- */
+// Get user profile by ID
 async function getUserById(id) {
-  const userRes = await db.query(
-    'SELECT id, email, name, role, created_at FROM users WHERE id = $1',
-    [id]
-  );
+    const result = await db.query(
+        'SELECT id, email, name, role, created_at FROM users WHERE id = $1',
+        [id]
+    );
 
-  if (userRes.rowCount === 0) {
-    const error = new Error('User account not found.');
-    error.status = 404;
-    throw error;
-  }
+    if (result.rowCount === 0) {
+        const error = new Error('User not found.');
+        error.status = 404;
+        throw error;
+    }
 
-  return userRes.rows[0];
+    return result.rows[0];
 }
 
 module.exports = {
-  register,
-  login,
-  getUserById
+    registerUser,
+    loginUser,
+    getUserById
 };

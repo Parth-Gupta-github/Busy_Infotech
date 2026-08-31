@@ -1,12 +1,16 @@
 const db = require('../db');
 
-/**
- * Create a new order with initial menu item lines & price snapshots (Goal #2 & Goal #3)
- * - Uses a PostgreSQL transaction (BEGIN / COMMIT / ROLLBACK)
- * - Captures price_at_add snapshot for each order line
- * - Calculates server running total_amount
- * - Creates an initial entry in audit_logs (Goal #9)
- */
+// Order state machine transition rules
+const ALLOWED_TRANSITIONS = {
+  PLACED: ['ACCEPTED', 'CANCELLED'],
+  ACCEPTED: ['PREPARING', 'CANCELLED'],
+  PREPARING: ['READY'],
+  READY: ['SERVED'],
+  SERVED: [],
+  CANCELLED: []
+};
+
+// Create a new order
 async function createOrder({ table_number, notes, created_by_id, items = [] }) {
   if (!table_number || table_number.trim() === '') {
     const error = new Error('Table number is required.');
@@ -14,29 +18,38 @@ async function createOrder({ table_number, notes, created_by_id, items = [] }) {
     throw error;
   }
 
+  const normalizedTable = table_number.trim();
   const client = await db.getClient();
 
   try {
-    await client.query('BEGIN'); // Start transaction
+    await client.query('BEGIN');
 
-    // 1. Insert Order Row with uppercase status 'PLACED' matching order_status_enum
+    const activeCheck = await client.query(
+      `SELECT id, status FROM orders 
+       WHERE table_number = $1 AND archived = false AND status NOT IN ('SERVED', 'CANCELLED')`,
+      [normalizedTable]
+    );
+
+    if (activeCheck.rowCount > 0) {
+      const error = new Error(`An active order already exists for ${normalizedTable}. Please add dishes to the existing order instead of creating a duplicate.`);
+      error.status = 400;
+      throw error;
+    }
+
     const orderRes = await client.query(
       `INSERT INTO orders (table_number, primary_waiter_id, status, notes)
        VALUES ($1, $2, 'PLACED', $3)
        RETURNING *`,
-      [table_number.trim(), created_by_id, notes ? notes.trim() : null]
+      [normalizedTable, created_by_id, notes ? notes.trim() : null]
     );
 
     const newOrder = orderRes.rows[0];
 
-    // 2. Process Order Lines (Goal #3: price_at_add snapshot & special instructions)
     if (Array.isArray(items) && items.length > 0) {
       for (const item of items) {
         const { menu_item_id, quantity = 1, special_instructions } = item;
-
         if (!menu_item_id) continue;
 
-        // Fetch current menu item price and availability
         const menuRes = await client.query(
           `SELECT id, name, price, available, archived FROM menu_items WHERE id = $1`,
           [menu_item_id]
@@ -49,7 +62,6 @@ async function createOrder({ table_number, notes, created_by_id, items = [] }) {
         }
 
         const menuItem = menuRes.rows[0];
-
         if (!menuItem.available || menuItem.archived) {
           const error = new Error(`Dish "${menuItem.name}" is currently out of stock or archived.`);
           error.status = 400;
@@ -59,22 +71,14 @@ async function createOrder({ table_number, notes, created_by_id, items = [] }) {
         const priceAtAdd = parseFloat(menuItem.price);
         const lineQty = parseInt(quantity, 10) || 1;
 
-        // Insert into order_lines capturing price_at_add snapshot
         await client.query(
           `INSERT INTO order_lines (order_id, menu_item_id, quantity, price_at_add, special_instructions)
            VALUES ($1, $2, $3, $4, $5)`,
-          [
-            newOrder.id,
-            menuItem.id,
-            lineQty,
-            priceAtAdd,
-            special_instructions ? special_instructions.trim() : null
-          ]
+          [newOrder.id, menuItem.id, lineQty, priceAtAdd, special_instructions ? special_instructions.trim() : null]
         );
       }
     }
 
-    // 3. Insert Initial Audit Log (Goal #9 Requirement matching schema: user_id & JSONB details)
     await client.query(
       `INSERT INTO audit_logs (order_id, user_id, action, details)
        VALUES ($1, $2, 'ORDER_CREATED', $3)`,
@@ -85,20 +89,99 @@ async function createOrder({ table_number, notes, created_by_id, items = [] }) {
       ]
     );
 
-    await client.query('COMMIT'); // Commit transaction
+    await client.query('COMMIT');
     return getOrderById(newOrder.id);
-
   } catch (err) {
-    await client.query('ROLLBACK'); // Rollback on failure
+    await client.query('ROLLBACK');
     throw err;
   } finally {
     client.release();
   }
 }
 
-/**
- * Get single order by ID with primary waiter details and order lines
- */
+// Add a new dish line to an existing active order
+async function addOrderLine({ order_id, menu_item_id, quantity = 1, special_instructions, actor_id }) {
+  if (!order_id || !menu_item_id) {
+    const error = new Error('Order ID and Menu Item ID are required.');
+    error.status = 400;
+    throw error;
+  }
+
+  const client = await db.getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    const orderRes = await client.query(
+      `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
+      [order_id]
+    );
+
+    if (orderRes.rowCount === 0) {
+      const error = new Error('Order not found.');
+      error.status = 404;
+      throw error;
+    }
+
+    const order = orderRes.rows[0];
+    if (order.archived || ['SERVED', 'CANCELLED'].includes(order.status)) {
+      const error = new Error(`Cannot add dishes to order in status "${order.status}".`);
+      error.status = 400;
+      throw error;
+    }
+
+    const menuRes = await client.query(
+      `SELECT id, name, price, available, archived FROM menu_items WHERE id = $1`,
+      [menu_item_id]
+    );
+
+    if (menuRes.rowCount === 0) {
+      const error = new Error('Menu item not found.');
+      error.status = 404;
+      throw error;
+    }
+
+    const menuItem = menuRes.rows[0];
+    if (!menuItem.available || menuItem.archived) {
+      const error = new Error(`Dish "${menuItem.name}" is currently out of stock or archived.`);
+      error.status = 400;
+      throw error;
+    }
+
+    const priceAtAdd = parseFloat(menuItem.price);
+    const lineQty = parseInt(quantity, 10) || 1;
+
+    const lineRes = await client.query(
+      `INSERT INTO order_lines (order_id, menu_item_id, quantity, price_at_add, special_instructions)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [order_id, menuItem.id, lineQty, priceAtAdd, special_instructions ? special_instructions.trim() : null]
+    );
+
+    await client.query(
+      `INSERT INTO audit_logs (order_id, user_id, action, details)
+       VALUES ($1, $2, 'LINE_ADDED', $3)`,
+      [
+        order_id,
+        actor_id,
+        JSON.stringify({
+          message: `Added ${lineQty}x ${menuItem.name} at ₹${priceAtAdd.toFixed(2)} each`,
+          lineId: lineRes.rows[0].id
+        })
+      ]
+    );
+
+    await client.query('COMMIT');
+    return getOrderById(order_id);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Get single order by ID
 async function getOrderById(id) {
   const orderRes = await db.query(
     `SELECT 
@@ -124,7 +207,6 @@ async function getOrderById(id) {
 
   const order = orderRes.rows[0];
 
-  // Fetch order lines for this order
   const linesRes = await db.query(
     `SELECT ol.*, mi.name as item_name
      FROM order_lines ol
@@ -138,9 +220,7 @@ async function getOrderById(id) {
   return order;
 }
 
-/**
- * Get Paginated & Filtered Orders (Goal #6)
- */
+// Get paginated and filtered orders
 async function getOrders({
   search = '',
   status = '',
@@ -231,9 +311,7 @@ async function getOrders({
   };
 }
 
-/**
- * Soft-delete (archive) or restore an order
- */
+// Soft-delete or restore an order
 async function setOrderArchiveStatus(id, archived) {
   await getOrderById(id);
 
@@ -248,9 +326,108 @@ async function setOrderArchiveStatus(id, archived) {
   return result.rows[0];
 }
 
+// Update order status
+async function updateOrderStatus(id, newStatus, actorId) {
+  const targetStatus = (newStatus || '').toUpperCase();
+  const validStatuses = ['PLACED', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'CANCELLED'];
+
+  if (!validStatuses.includes(targetStatus)) {
+    const error = new Error(`Invalid status "${newStatus}". Must be one of: ${validStatuses.join(', ')}`);
+    error.status = 400;
+    throw error;
+  }
+
+  const client = await db.getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    const orderRes = await client.query(
+      `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
+      [id]
+    );
+
+    if (orderRes.rowCount === 0) {
+      const error = new Error('Order not found.');
+      error.status = 404;
+      throw error;
+    }
+
+    const currentOrder = orderRes.rows[0];
+    const oldStatus = currentOrder.status;
+
+    if (oldStatus === targetStatus) {
+      await client.query('COMMIT');
+      return currentOrder;
+    }
+
+    const allowedNext = ALLOWED_TRANSITIONS[oldStatus] || [];
+    if (!allowedNext.includes(targetStatus)) {
+      let msg = `Cannot transition order status from ${oldStatus} to ${targetStatus}.`;
+      if (targetStatus === 'CANCELLED') {
+        msg = `Cannot cancel order in status "${oldStatus}". Cancellation is ONLY allowed when status is PLACED or ACCEPTED.`;
+      }
+      const error = new Error(msg);
+      error.status = 400;
+      throw error;
+    }
+
+    const updatedRes = await client.query(
+      `UPDATE orders
+       SET status = $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [targetStatus, id]
+    );
+
+    const updatedOrder = updatedRes.rows[0];
+
+    await client.query(
+      `INSERT INTO audit_logs (order_id, user_id, action, old_status, new_status, details)
+       VALUES ($1, $2, 'STATUS_CHANGED', $3, $4, $5)`,
+      [
+        id,
+        actorId,
+        oldStatus,
+        targetStatus,
+        JSON.stringify({
+          message: `Order status changed from ${oldStatus} to ${targetStatus}`
+        })
+      ]
+    );
+
+    await client.query('COMMIT');
+    return updatedOrder;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Get order audit logs
+async function getOrderAuditLogs(orderId) {
+  const result = await db.query(
+    `SELECT 
+       al.*, 
+       u.name as actor_name, 
+       u.role as actor_role
+     FROM audit_logs al
+     JOIN users u ON al.user_id = u.id
+     WHERE al.order_id = $1
+     ORDER BY al.created_at ASC`,
+    [orderId]
+  );
+  return result.rows;
+}
+
 module.exports = {
   createOrder,
+  addOrderLine,
   getOrderById,
   getOrders,
-  setOrderArchiveStatus
+  setOrderArchiveStatus,
+  updateOrderStatus,
+  getOrderAuditLogs
 };

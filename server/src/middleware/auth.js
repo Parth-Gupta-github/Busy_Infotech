@@ -1,32 +1,25 @@
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-for-development';
+const JWT_SECRET = process.env.JWT_SECRET || 'restaurant_secret_jwt_key_2026';
 
-/**
- * Authentication Middleware
- * Verifies JWT token in incoming Authorization header and attaches req.user
- */
+// JWT verification middleware
 function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Extract token from "Bearer <TOKEN>"
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
 
-  if (!token) {
-    return res.status(401).json({ error: 'Access token required. Please log in.' });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, decoded) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token. Please log in again.' });
+    if (!token) {
+        return res.status(401).json({ error: 'Access token required.' });
     }
 
-    // Attach decoded user info ({ id, email, role, name }) to request
-    req.user = decoded;
-    next();
-  });
+    jwt.verify(token, JWT_SECRET, (err, user) => {
+        if (err) {
+            return res.status(403).json({ error: 'Invalid or expired token.' });
+        }
+        req.user = user;
+        next();
+    });
 }
 
 module.exports = {
-  authenticateToken,
-  JWT_SECRET
+    authenticateToken
 };

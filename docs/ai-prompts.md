@@ -70,7 +70,7 @@ Split the execution into separate single-command statements compatible with Powe
 ## Authentication & Role Enforcement Implementation (Phase 2)
 
 ### Prompt
-"Build Phase 2 authentication: JWT verification middleware, server-enforced role checking middleware (requireRole('MANAGER')), auth service with bcrypt hashing and raw SQL user queries, Express routes (/api/auth/register, /api/auth/login, /api/auth/me), React AuthContext, ProtectedRoute component, and dark-mode Login/Register pages."
+"Build Phase 2 authentication: JWT verification middleware, server-enforced role checking middleware (requireRole('MANAGER')), auth service with bcrypt hashing and raw SQL user queries, Express routes (/api/auth/register, /api/auth/login, /api/auth/me), React Auth Context, ProtectedRoute component, and dark-mode Login/Register pages."
 
 ### What you got
 Complete authentication implementation across `server/src/middleware/auth.js`, `server/src/middleware/roleCheck.js`, `server/src/services/authService.js`, `server/src/routes/auth.js`, `client/src/context/AuthContext.jsx`, `client/src/components/ProtectedRoute.jsx`, `client/src/pages/LoginPage.jsx`, and `client/src/pages/RegisterPage.jsx`.
@@ -108,3 +108,18 @@ Complete order service, order routes, and `OrdersPage.jsx` component supporting 
 - **Connection Checkout Fix:** Replaced `pool.getClient()` in `server/src/db.js` with `pool.connect()` (the correct native `node-postgres` method) to fix transactional client checkout for multi-query `BEGIN / COMMIT` transactions.
 - **Schema Column Type Patch:** Executed `patch_schema.js` to alter `orders.table_number` column to `VARCHAR(255)` in PostgreSQL so table identifiers like `"Table 4"` or `"Bar 1"` are accepted without integer type errors.
 - **Goal #3 Price Snapshot Enforcement:** Verified that `createOrder` queries `menu_items.price` at insertion time and writes it directly to `order_lines.price_at_add`, preserving historical item pricing even if menu prices change later.
+
+---
+
+## Order Lifecycle State Machine & Audit Trail Implementation (Phase 5)
+
+### Prompt
+"Build Phase 5 Order Lifecycle State Machine & Audit Trail: updateOrderStatus function in orderService.js enforcing PLACED -> ACCEPTED -> PREPARING -> READY -> SERVED transitions and cancellation rules, append-only audit_logs insertion, PATCH /api/orders/:id/status, GET /api/orders/:id/audit endpoints, active table order guard, POST /api/orders/:id/lines endpoint, and OrdersPage.jsx lifecycle action buttons & audit log timeline modal."
+
+### What you got
+Complete state machine validation logic, audit log insertion queries, status transition endpoints, duplicate active table order guard, live dish addition to active orders, and dark glassmorphism timeline modal.
+
+### What you corrected
+- **Cancellation Rule Enforcement:** Ensured `updateOrderStatus()` blocks cancellation if the order has already reached `PREPARING`, `READY`, or `SERVED` status.
+- **Duplicate Active Table Guard:** Added a database check blocking new order creation for a table number if an un-archived active order (`PLACED`, `ACCEPTED`, `PREPARING`, `READY`) is already open.
+- **Comment Cleanup:** Simplified all block comments across server files to clean 1-line comments.

@@ -1,9 +1,6 @@
 const db = require('../db');
 
-/**
- * Get all menu items
- * @param {boolean} includeArchived - If true, returns archived items as well
- */
+// Get all menu items
 async function getAllMenuItems(includeArchived = false) {
     let queryText = 'SELECT * FROM menu_items';
     if (!includeArchived) {
@@ -15,9 +12,7 @@ async function getAllMenuItems(includeArchived = false) {
     return result.rows;
 }
 
-/**
- * Get single menu item by ID
- */
+// Get single menu item by ID
 async function getMenuItemById(id) {
     const result = await db.query('SELECT * FROM menu_items WHERE id = $1', [id]);
     if (result.rowCount === 0) {
@@ -28,9 +23,7 @@ async function getMenuItemById(id) {
     return result.rows[0];
 }
 
-/**
- * Create a new menu item (Manager Only)
- */
+// Create a new menu item (Manager Only)
 async function createMenuItem({ name, price, available = true }) {
     if (!name || name.trim() === '') {
         const error = new Error('Menu item name is required.');
@@ -47,17 +40,15 @@ async function createMenuItem({ name, price, available = true }) {
 
     const result = await db.query(
         `INSERT INTO menu_items (name, price, available)
-     VALUES ($1, $2, $3)
-     RETURNING *`,
+         VALUES ($1, $2, $3)
+         RETURNING *`,
         [name.trim(), numPrice, available]
     );
 
     return result.rows[0];
 }
 
-/**
- * Update a menu item (Manager Only)
- */
+// Update a menu item (Manager Only)
 async function updateMenuItem(id, { name, price, available }) {
     const currentItem = await getMenuItemById(id);
 
@@ -78,37 +69,31 @@ async function updateMenuItem(id, { name, price, available }) {
 
     const result = await db.query(
         `UPDATE menu_items
-     SET name = $1, price = $2, available = $3, updated_at = NOW()
-     WHERE id = $4
-     RETURNING *`,
+         SET name = $1, price = $2, available = $3, updated_at = NOW()
+         WHERE id = $4
+         RETURNING *`,
         [newName, newPrice, newAvailable, id]
     );
 
     return result.rows[0];
 }
 
-/**
- * Soft-delete (archive) or restore a menu item (Manager Only)
- */
+// Soft-delete (archive) or restore a menu item (Manager Only)
 async function setArchiveStatus(id, archived) {
     await getMenuItemById(id);
 
     const result = await db.query(
         `UPDATE menu_items
-     SET archived = $1, updated_at = NOW()
-     WHERE id = $2
-     RETURNING *`,
+         SET archived = $1, updated_at = NOW()
+         WHERE id = $2
+         RETURNING *`,
         [archived, id]
     );
 
     return result.rows[0];
 }
 
-/**
- * Bulk Action — Apply price or availability changes to multiple items
- * Assignment Rule: Must report per item what succeeded and what failed with reasons!
- * @param {Array<{ id: string, price?: number, available?: boolean }>} updates
- */
+// Bulk update prices and availability with per-item pass/fail reporting
 async function bulkUpdateMenuItems(updates) {
     if (!Array.isArray(updates) || updates.length === 0) {
         const error = new Error('Updates array cannot be empty.');
@@ -127,7 +112,6 @@ async function bulkUpdateMenuItems(updates) {
                 continue;
             }
 
-            // Verify item exists
             const itemCheck = await db.query('SELECT * FROM menu_items WHERE id = $1', [id]);
             if (itemCheck.rowCount === 0) {
                 results.push({ id, success: false, reason: 'Menu item not found.' });
@@ -138,7 +122,6 @@ async function bulkUpdateMenuItems(updates) {
             let newPrice = item.price;
             let newAvailable = item.available;
 
-            // Validate price if provided
             if (price !== undefined) {
                 const numPrice = parseFloat(price);
                 if (isNaN(numPrice) || numPrice < 0) {
@@ -157,12 +140,11 @@ async function bulkUpdateMenuItems(updates) {
                 newAvailable = Boolean(available);
             }
 
-            // Execute update
             const updatedRes = await db.query(
                 `UPDATE menu_items
-         SET price = $1, available = $2, updated_at = NOW()
-         WHERE id = $3
-         RETURNING *`,
+                 SET price = $1, available = $2, updated_at = NOW()
+                 WHERE id = $3
+                 RETURNING *`,
                 [newPrice, newAvailable, id]
             );
 

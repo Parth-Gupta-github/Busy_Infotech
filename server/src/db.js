@@ -1,7 +1,7 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// Create PostgreSQL connection pool using Supabase/Postgres connection string
+// PostgreSQL connection pool configuration
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.DATABASE_URL && process.env.DATABASE_URL.includes('localhost')
@@ -14,16 +14,10 @@ pool.on('error', (err) => {
 });
 
 module.exports = {
-  /**
-   * Execute a SQL query with parameter values
-   * @param {string} text - SQL query string
-   * @param {Array} params - Parameter array
-   */
+  // Execute a SQL query with parameters
   query: (text, params) => pool.query(text, params),
 
-  /**
-   * Get a client from pool for multi-query transaction
-   */
+  // Check out a client connection from pool for multi-query transaction
   getClient: () => pool.connect(),
 
   pool

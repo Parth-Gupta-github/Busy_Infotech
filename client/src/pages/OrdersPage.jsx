@@ -4,6 +4,7 @@ import { apiFetch } from '../services/api';
 import {
   ShoppingBag,
   Plus,
+  Minus,
   Search,
   User,
   Clock,
@@ -16,7 +17,14 @@ import {
   Trash2,
   Eye,
   X,
-  Utensils
+  Utensils,
+  CheckCircle,
+  Play,
+  Flame,
+  CheckCheck,
+  Ban,
+  History,
+  Grid
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -28,7 +36,20 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Menu items list for order creation picker
+  // Total Restaurant Tables State (Manager Configurable)
+  const [totalTables, setTotalTables] = useState(() => {
+    const saved = localStorage.getItem('total_restaurant_tables');
+    return saved ? parseInt(saved, 10) || 12 : 12;
+  });
+
+  // Save Total Tables to LocalStorage
+  const handleUpdateTotalTables = (newCount) => {
+    const validCount = Math.max(1, Math.min(100, newCount));
+    setTotalTables(validCount);
+    localStorage.setItem('total_restaurant_tables', validCount.toString());
+  };
+
+  // Menu items list for order creation & line addition pickers
   const [menuItems, setMenuItems] = useState([]);
 
   // Search & Filter State
@@ -38,18 +59,28 @@ export default function OrdersPage() {
 
   // Create Order Modal State
   const [showAddModal, setShowAddModal] = useState(false);
-  const [tableNumber, setTableNumber] = useState('');
+  const [modalError, setModalError] = useState('');
+  const [selectedTableNumber, setSelectedTableNumber] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
-  const [draftLines, setDraftLines] = useState([]); // Selected dishes: [{ menu_item_id, name, price, quantity, special_instructions }]
+  const [draftLines, setDraftLines] = useState([]);
 
-  // Current Dish Picker State inside Modal
+  // Current Dish Picker State inside Create Modal
   const [selectedMenuItemId, setSelectedMenuItemId] = useState('');
   const [dishQuantity, setDishQuantity] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState('');
 
+  // Add Item to Existing Active Order State
+  const [addingLineToOrder, setAddingLineToOrder] = useState(null);
+  const [appendMenuItemId, setAppendMenuItemId] = useState('');
+  const [appendQuantity, setAppendQuantity] = useState(1);
+  const [appendSpecialInstructions, setAppendSpecialInstructions] = useState('');
+
   // Order Details View Modal State
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
-  const [detailsLoading, setDetailsLoading] = useState(false);
+
+  // Audit Logs Modal State (Goal #9)
+  const [auditLogsOrder, setAuditLogsOrder] = useState(null);
+  const [auditLogs, setAuditLogs] = useState([]);
 
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -77,11 +108,11 @@ export default function OrdersPage() {
   const fetchMenuItems = async () => {
     try {
       const data = await apiFetch('/menu');
-      // Filter active available dishes
       const availableDishes = (data || []).filter(item => item.available && !item.archived);
       setMenuItems(availableDishes);
       if (availableDishes.length > 0) {
         setSelectedMenuItemId(availableDishes[0].id);
+        setAppendMenuItemId(availableDishes[0].id);
       }
     } catch (err) {
       console.error('Failed to load menu items:', err);
@@ -101,6 +132,33 @@ export default function OrdersPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Generate Table Options and Detect Occupied Tables
+  const getTableOptions = () => {
+    const tableOptions = [];
+    for (let i = 1; i <= totalTables; i++) {
+      const name = `Table ${i}`;
+      // Check if table has active order
+      const isOccupied = orders.some(o => 
+        o.table_number.toLowerCase() === name.toLowerCase() && 
+        !o.archived && 
+        !['SERVED', 'CANCELLED'].includes((o.status || '').toUpperCase())
+      );
+      tableOptions.push({ number: i, name, isOccupied });
+    }
+    return tableOptions;
+  };
+
+  // Open Create Order Modal with First Available Unoccupied Table Selected
+  const handleOpenAddModal = () => {
+    const options = getTableOptions();
+    const firstAvailable = options.find(t => !t.isOccupied);
+    setSelectedTableNumber(firstAvailable ? firstAvailable.name : options[0]?.name || 'Table 1');
+    setOrderNotes('');
+    setDraftLines([]);
+    setModalError('');
+    setShowAddModal(true);
+  };
 
   // Add Dish to Draft Lines
   const handleAddDishToDraft = () => {
@@ -134,7 +192,7 @@ export default function OrdersPage() {
   const handleCreateOrder = async (e) => {
     e.preventDefault();
     setActionLoading(true);
-    setError('');
+    setModalError('');
 
     const payloadItems = draftLines.map(line => ({
       menu_item_id: line.menu_item_id,
@@ -146,35 +204,89 @@ export default function OrdersPage() {
       await apiFetch('/orders', {
         method: 'POST',
         body: JSON.stringify({
-          table_number: tableNumber,
+          table_number: selectedTableNumber,
           notes: orderNotes,
           items: payloadItems
         })
       });
 
       setShowAddModal(false);
-      setTableNumber('');
       setOrderNotes('');
       setDraftLines([]);
+      setModalError('');
       setPage(1);
       fetchOrders();
     } catch (err) {
-      setError(err.message || 'Failed to create order.');
+      setModalError(err.message || 'Failed to create order.');
     } finally {
       setActionLoading(false);
     }
   };
 
-  // View Order Details
+  // Submit Append Dish Line to Existing Active Order (Goal #3)
+  const handleAppendDishLine = async (e) => {
+    e.preventDefault();
+    if (!addingLineToOrder || !appendMenuItemId) return;
+
+    try {
+      setActionLoading(true);
+      const updatedOrder = await apiFetch(`/orders/${addingLineToOrder.id}/lines`, {
+        method: 'POST',
+        body: JSON.stringify({
+          menu_item_id: appendMenuItemId,
+          quantity: appendQuantity,
+          special_instructions: appendSpecialInstructions
+        })
+      });
+
+      setAddingLineToOrder(null);
+      setAppendQuantity(1);
+      setAppendSpecialInstructions('');
+      if (selectedOrderDetails && selectedOrderDetails.id === updatedOrder.id) {
+        setSelectedOrderDetails(updatedOrder);
+      }
+      fetchOrders();
+    } catch (err) {
+      alert(err.message || 'Failed to add dish to order.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Transition Order Lifecycle Status (Goal #4)
+  const handleStatusTransition = async (orderId, newStatus) => {
+    try {
+      setActionLoading(true);
+      await apiFetch(`/orders/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus })
+      });
+      fetchOrders();
+    } catch (err) {
+      alert(err.message || 'Status transition failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // View Order Details Modal
   const handleViewOrderDetails = async (id) => {
     try {
-      setDetailsLoading(true);
       const data = await apiFetch(`/orders/${id}`);
       setSelectedOrderDetails(data);
     } catch (err) {
       alert(err.message || 'Failed to load order details.');
-    } finally {
-      setDetailsLoading(false);
+    }
+  };
+
+  // View Audit History Log Timeline Modal (Goal #9)
+  const handleViewAuditLogs = async (order) => {
+    try {
+      setAuditLogsOrder(order);
+      const logs = await apiFetch(`/orders/${order.id}/audit`);
+      setAuditLogs(logs || []);
+    } catch (err) {
+      alert(err.message || 'Failed to load audit logs.');
     }
   };
 
@@ -209,6 +321,8 @@ export default function OrdersPage() {
     );
   };
 
+  const tableOptionsList = getTableOptions();
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -219,25 +333,45 @@ export default function OrdersPage() {
             <h1 className="text-2xl font-bold text-slate-100">Orders</h1>
           </div>
           <p className="text-slate-400 text-xs mt-1">
-            Create orders with menu dishes & special instructions, search tables, and track order lifecycles
+            Manage orders, select tables, add dishes to active orders, execute lifecycle transitions, and view audit history
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setTableNumber('');
-            setOrderNotes('');
-            setDraftLines([]);
-            setShowAddModal(true);
-          }}
-          className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex items-center gap-2 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Create New Order</span>
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Manager Restaurant Table Capacity Control */}
+          {isManager && (
+            <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
+              <Grid className="w-4 h-4 text-emerald-400" />
+              <span className="text-slate-400 font-medium">Tables:</span>
+              <button
+                onClick={() => handleUpdateTotalTables(totalTables - 1)}
+                className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold transition-colors cursor-pointer"
+                title="Decrease Restaurant Total Tables"
+              >
+                <Minus className="w-3 h-3" />
+              </button>
+              <span className="font-bold font-mono text-emerald-400 px-1 text-sm">{totalTables}</span>
+              <button
+                onClick={() => handleUpdateTotalTables(totalTables + 1)}
+                className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold transition-colors cursor-pointer"
+                title="Increase Restaurant Total Tables"
+              >
+                <Plus className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
+          <button
+            onClick={handleOpenAddModal}
+            className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex items-center gap-2 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create New Order</span>
+          </button>
+        </div>
       </div>
 
-      {/* Error Banner */}
+      {/* Main Error Banner */}
       {error && (
         <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 shrink-0" />
@@ -261,7 +395,7 @@ export default function OrdersPage() {
 
         {/* Status Filters */}
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-          {['ALL', 'Placed', 'Accepted', 'Preparing', 'Ready', 'Served', 'Cancelled'].map((st) => (
+          {['ALL', 'PLACED', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'CANCELLED'].map((st) => (
             <button
               key={st}
               onClick={() => {
@@ -274,7 +408,7 @@ export default function OrdersPage() {
                   : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
               }`}
             >
-              {st}
+              {st === 'ALL' ? 'ALL' : st.charAt(0) + st.slice(1).toLowerCase()}
             </button>
           ))}
         </div>
@@ -292,93 +426,197 @@ export default function OrdersPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {orders.map((ord) => (
-            <div
-              key={ord.id}
-              className={`bg-slate-900/60 backdrop-blur-md rounded-2xl border p-5 space-y-4 transition-all hover:border-slate-700 ${
-                ord.archived ? 'opacity-50 border-slate-800/40 bg-slate-950/40' : 'border-slate-800'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-base font-bold text-slate-100">{ord.table_number}</h3>
-                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">
-                    Order #{ord.id.slice(0, 8)}
-                  </p>
-                </div>
-                {getStatusBadge(ord.status)}
-              </div>
+          {orders.map((ord) => {
+            const currentStatus = (ord.status || 'PLACED').toUpperCase();
+            const isActiveOrder = !ord.archived && !['SERVED', 'CANCELLED'].includes(currentStatus);
 
-              <div className="space-y-1.5 text-xs text-slate-400 pt-2 border-t border-slate-800/60">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-500">
-                    <User className="w-3.5 h-3.5" />
-                    Primary Waiter:
-                  </span>
-                  <span className="font-semibold text-slate-200">
-                    {ord.primary_waiter_name || 'Unassigned'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-500">
-                    <Clock className="w-3.5 h-3.5" />
-                    Created:
-                  </span>
-                  <span>{new Date(ord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-slate-500">
-                    <Utensils className="w-3.5 h-3.5" />
-                    Dishes Added:
-                  </span>
-                  <span className="font-mono text-emerald-400 font-bold">{ord.item_count || 0} items</span>
-                </div>
-
-                {ord.notes && (
-                  <div className="flex items-start gap-1.5 text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800 mt-2">
-                    <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-500" />
-                    <span className="text-[11px] italic">{ord.notes}</span>
+            return (
+              <div
+                key={ord.id}
+                className={`bg-slate-900/60 backdrop-blur-md rounded-2xl border p-5 space-y-4 transition-all hover:border-slate-700 flex flex-col justify-between ${
+                  ord.archived ? 'opacity-50 border-slate-800/40 bg-slate-950/40' : 'border-slate-800'
+                }`}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-100">{ord.table_number}</h3>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                        Order #{ord.id.slice(0, 8)}
+                      </p>
+                    </div>
+                    {getStatusBadge(ord.status)}
                   </div>
-                )}
-              </div>
 
-              <div className="flex items-center justify-between pt-3 border-t border-slate-800/60">
-                <div>
-                  <span className="text-[10px] uppercase tracking-wider text-slate-500">Total</span>
-                  <p className="text-base font-bold text-emerald-400 font-mono">
-                    ₹{parseFloat(ord.total_amount || 0).toFixed(2)}
-                  </p>
+                  <div className="space-y-1.5 text-xs text-slate-400 pt-2 border-t border-slate-800/60">
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-slate-500">
+                        <User className="w-3.5 h-3.5" />
+                        Primary Waiter:
+                      </span>
+                      <span className="font-semibold text-slate-200">
+                        {ord.primary_waiter_name || 'Unassigned'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-slate-500">
+                        <Clock className="w-3.5 h-3.5" />
+                        Created:
+                      </span>
+                      <span>{new Date(ord.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5 text-slate-500">
+                        <Utensils className="w-3.5 h-3.5" />
+                        Dishes Added:
+                      </span>
+                      <span className="font-mono text-emerald-400 font-bold">{ord.item_count || 0} items</span>
+                    </div>
+
+                    {ord.notes && (
+                      <div className="flex items-start gap-1.5 text-slate-400 bg-slate-950/60 p-2 rounded-lg border border-slate-800 mt-2">
+                        <FileText className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-500" />
+                        <span className="text-[11px] italic">{ord.notes}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleViewOrderDetails(ord.id)}
-                    className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer flex items-center gap-1 text-xs"
-                    title="View Order Details"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span>Details</span>
-                  </button>
+                <div className="space-y-3 pt-3 border-t border-slate-800/60">
+                  {/* Order Total & Quick Actions */}
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <span className="text-[10px] uppercase tracking-wider text-slate-500">Total</span>
+                      <p className="text-base font-bold text-emerald-400 font-mono">
+                        ₹{parseFloat(ord.total_amount || 0).toFixed(2)}
+                      </p>
+                    </div>
 
-                  {isManager && (
-                    <button
-                      onClick={() => handleToggleArchive(ord.id, ord.archived)}
-                      className={`p-2 rounded-xl transition-colors cursor-pointer ${
-                        ord.archived
-                          ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
-                          : 'bg-red-500/10 hover:bg-red-500/20 text-red-400'
-                      }`}
-                      title={ord.archived ? 'Restore Order' : 'Archive Order'}
-                    >
-                      {ord.archived ? <RotateCcw className="w-4 h-4" /> : <Archive className="w-4 h-4" />}
-                    </button>
-                  )}
+                    <div className="flex items-center gap-1.5">
+                      {isActiveOrder && (
+                        <button
+                          onClick={() => setAddingLineToOrder(ord)}
+                          className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                          title="Add Dish to Active Order"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Dish</span>
+                        </button>
+                      )}
+
+                      <button
+                        onClick={() => handleViewOrderDetails(ord.id)}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                        title="View Order Details"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Details</span>
+                      </button>
+
+                      <button
+                        onClick={() => handleViewAuditLogs(ord)}
+                        className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer flex items-center gap-1 text-xs"
+                        title="View Immutable Audit History"
+                      >
+                        <History className="w-3.5 h-3.5 text-amber-400" />
+                      </button>
+
+                      {isManager && (
+                        <button
+                          onClick={() => handleToggleArchive(ord.id, ord.archived)}
+                          className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                            ord.archived
+                              ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400'
+                              : 'bg-red-500/10 hover:bg-red-500/20 text-red-400'
+                          }`}
+                          title={ord.archived ? 'Restore Order' : 'Archive Order'}
+                        >
+                          {ord.archived ? <RotateCcw className="w-3.5 h-3.5" /> : <Archive className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Lifecycle State Machine Transition Action Buttons */}
+                  <div className="pt-2 border-t border-slate-800/40 flex items-center gap-2">
+                    {currentStatus === 'PLACED' && (
+                      <>
+                        <button
+                          onClick={() => handleStatusTransition(ord.id, 'ACCEPTED')}
+                          disabled={actionLoading}
+                          className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Play className="w-3.5 h-3.5" />
+                          <span>Accept Order</span>
+                        </button>
+                        <button
+                          onClick={() => handleStatusTransition(ord.id, 'CANCELLED')}
+                          disabled={actionLoading}
+                          className="py-2 px-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-semibold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                          title="Cancel Order"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                          <span>Cancel</span>
+                        </button>
+                      </>
+                    )}
+
+                    {currentStatus === 'ACCEPTED' && (
+                      <>
+                        <button
+                          onClick={() => handleStatusTransition(ord.id, 'PREPARING')}
+                          disabled={actionLoading}
+                          className="flex-1 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-400 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Flame className="w-3.5 h-3.5" />
+                          <span>Start Preparing</span>
+                        </button>
+                        <button
+                          onClick={() => handleStatusTransition(ord.id, 'CANCELLED')}
+                          disabled={actionLoading}
+                          className="py-2 px-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-semibold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                          title="Cancel Order"
+                        >
+                          <Ban className="w-3.5 h-3.5" />
+                          <span>Cancel</span>
+                        </button>
+                      </>
+                    )}
+
+                    {currentStatus === 'PREPARING' && (
+                      <button
+                        onClick={() => handleStatusTransition(ord.id, 'READY')}
+                        disabled={actionLoading}
+                        className="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" />
+                        <span>Mark Ready for Pickup</span>
+                      </button>
+                    )}
+
+                    {currentStatus === 'READY' && (
+                      <button
+                        onClick={() => handleStatusTransition(ord.id, 'SERVED')}
+                        disabled={actionLoading}
+                        className="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Mark Served to Table</span>
+                      </button>
+                    )}
+
+                    {(currentStatus === 'SERVED' || currentStatus === 'CANCELLED') && (
+                      <div className="w-full py-1.5 text-center text-[11px] font-mono text-slate-500 bg-slate-950/60 rounded-xl border border-slate-800">
+                        Lifecycle Complete ({currentStatus})
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -409,9 +647,89 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* Create Order Modal with Menu Item Selection & Special Instructions */}
+      {/* Add Dish Line to Existing Active Order Modal */}
+      {addingLineToOrder && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-100">
+                  Add Dish to {addingLineToOrder.table_number}
+                </h2>
+                <p className="text-xs text-slate-400">
+                  Appends a new dish line with price snapshot to this active order
+                </p>
+              </div>
+              <button onClick={() => setAddingLineToOrder(null)} className="text-slate-400 hover:text-slate-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAppendDishLine} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Select Dish</label>
+                <select
+                  value={appendMenuItemId}
+                  onChange={(e) => setAppendMenuItemId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                >
+                  {menuItems.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} — ₹{parseFloat(m.price).toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">Quantity</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="99"
+                  value={appendQuantity}
+                  onChange={(e) => setAppendQuantity(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Special Instructions (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={appendSpecialInstructions}
+                  onChange={(e) => setAppendSpecialInstructions(e.target.value)}
+                  placeholder="e.g. Extra spicy, less oil"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setAddingLineToOrder(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl cursor-pointer"
+                >
+                  {actionLoading ? 'Adding...' : 'Add Dish'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Create Order Modal with Dropdown Table Selector */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-100">Create New Order</h2>
@@ -420,19 +738,31 @@ export default function OrdersPage() {
               </button>
             </div>
 
+            {/* In-Modal Error Banner Alert */}
+            {modalError && (
+              <div className="p-3.5 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs flex items-center gap-2.5 shadow-md">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span className="font-semibold">{modalError}</span>
+              </div>
+            )}
+
             <form onSubmit={handleCreateOrder} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Table Number / Identifier *
+                  Select Restaurant Table *
                 </label>
-                <input
-                  type="text"
+                <select
                   required
-                  value={tableNumber}
-                  onChange={(e) => setTableNumber(e.target.value)}
-                  placeholder="e.g. Table 4 or Bar 1"
+                  value={selectedTableNumber}
+                  onChange={(e) => setSelectedTableNumber(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-                />
+                >
+                  {tableOptionsList.map((t) => (
+                    <option key={t.number} value={t.name} disabled={t.isOccupied}>
+                      {t.name} {t.isOccupied ? '— ⚠️ Active Order (Occupied)' : '— Available'}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -448,10 +778,10 @@ export default function OrdersPage() {
                 />
               </div>
 
-              {/* Menu Item Picker Section (Goal #3) */}
+              {/* Menu Item Picker Section */}
               <div className="pt-3 border-t border-slate-800 space-y-3">
                 <label className="block text-xs font-bold text-emerald-400 uppercase tracking-wider">
-                  Add Dishes to Order (Goal #3)
+                  Add Dishes to Order
                 </label>
 
                 {menuItems.length === 0 ? (
@@ -489,7 +819,7 @@ export default function OrdersPage() {
 
                     <div>
                       <label className="block text-[10px] text-slate-400 mb-1">
-                        Special Instructions for Dish (e.g. Extra spicy, no onions)
+                        Special Instructions for Dish
                       </label>
                       <input
                         type="text"
@@ -576,9 +906,9 @@ export default function OrdersPage() {
         </div>
       )}
 
-      {/* View Order Details Modal (Goal #3 Lines & Price Snapshots) */}
+      {/* View Order Details Modal */}
       {selectedOrderDetails && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <div>
@@ -600,9 +930,24 @@ export default function OrdersPage() {
 
             {/* Order Lines with price_at_add snapshots */}
             <div className="space-y-2 pt-2">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
-                Ordered Items (Goal #3 Price Snapshots)
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                  Ordered Items
+                </h3>
+
+                {!['SERVED', 'CANCELLED'].includes((selectedOrderDetails.status || '').toUpperCase()) && (
+                  <button
+                    onClick={() => {
+                      setAddingLineToOrder(selectedOrderDetails);
+                      setSelectedOrderDetails(null);
+                    }}
+                    className="px-2.5 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold rounded-lg flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Dish</span>
+                  </button>
+                )}
+              </div>
 
               {(!selectedOrderDetails.lines || selectedOrderDetails.lines.length === 0) ? (
                 <p className="text-xs text-slate-500 italic">No item lines added to this order yet.</p>
@@ -645,6 +990,83 @@ export default function OrdersPage() {
                 className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-semibold rounded-xl cursor-pointer"
               >
                 Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Immutable Audit History Log Timeline Modal */}
+      {auditLogsOrder && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    Audit Trail — {auditLogsOrder.table_number}
+                  </h2>
+                  <p className="text-xs text-slate-400 font-mono">
+                    Immutable Log (Uneditable)
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setAuditLogsOrder(null)} className="text-slate-400 hover:text-slate-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {auditLogs.length === 0 ? (
+              <p className="text-xs text-slate-500 italic p-4 text-center">No audit logs recorded for this order.</p>
+            ) : (
+              <div className="space-y-3 pl-2 border-l-2 border-slate-800 my-2">
+                {auditLogs.map((log) => {
+                  let detailsObj = {};
+                  try {
+                    detailsObj = typeof log.details === 'string' ? JSON.parse(log.details) : (log.details || {});
+                  } catch (e) {
+                    detailsObj = { message: String(log.details) };
+                  }
+
+                  return (
+                    <div key={log.id} className="relative pl-4 text-xs space-y-1">
+                      <span className="absolute -left-[17px] top-1.5 w-2.5 h-2.5 rounded-full bg-amber-400 ring-4 ring-slate-900"></span>
+
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-200">{log.action}</span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          {new Date(log.created_at).toLocaleString()}
+                        </span>
+                      </div>
+
+                      <p className="text-slate-400">
+                        Actor: <strong className="text-slate-300">{log.actor_name}</strong> ({log.actor_role})
+                      </p>
+
+                      {log.old_status && log.new_status && (
+                        <p className="text-slate-300 font-mono text-[11px]">
+                          Transition: <span className="text-amber-400">{log.old_status}</span> ➔ <span className="text-emerald-400">{log.new_status}</span>
+                        </p>
+                      )}
+
+                      {detailsObj.message && (
+                        <p className="text-[11px] text-slate-500 italic">
+                          {detailsObj.message}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <button
+                onClick={() => setAuditLogsOrder(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs font-semibold rounded-xl cursor-pointer"
+              >
+                Close Audit Log
               </button>
             </div>
           </div>

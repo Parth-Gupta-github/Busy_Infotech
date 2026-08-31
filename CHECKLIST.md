@@ -26,13 +26,13 @@ This document tracks all required deliverables, architectural rules, and 10 core
 |---|------|------------------|--------|-------|
 | 1 | **Accounts & Roles** | Email/password sign-in; `MANAGER` & `WAITER` roles; server-enforced permissions (waiters cannot touch menu or unauthorized orders). | Done | Phase 2 |
 | 2 | **Orders** | Table number identifier; creator becomes primary waiter; archive & restore functionality preserving history. | Done | Phase 4 |
-| 3 | **Order Lines** | Quantity, menu item, special instructions; price snapshot `price_at_add`; server-calculated running total. | Done | Phase 4 |
-| 4 | **Order Lifecycle & Rules** | State flow: `Placed → Accepted → Preparing → Ready → Served`; cancel allowed ONLY in `Placed`/`Accepted`; line voiding with required reason. | Pending | Phase 5 |
+| 3 | **Order Lines** | Quantity, menu item, special instructions; price snapshot `price_at_add`; server-calculated running total. | Done | Phase 4 & 5 |
+| 4 | **Order Lifecycle & Rules** | State flow: `Placed → Accepted → Preparing → Ready → Served`; cancel allowed ONLY in `Placed`/`Accepted`; line voiding with required reason. | Done | Phase 5 |
 | 5 | **Collaborators** | Primary waiter can add other waiters as collaborators; waiters see all orders they own or collaborate on. | Pending | Phase 7 |
 | 6 | **Finding Orders** | Server-side text search over table numbers, status/waiter/date filters, sorting, and pagination. | Done | Phase 4 |
 | 7 | **Bulk Actions & CSV Export** | Manager bulk price/availability change reporting per-item pass/fail; export daily orders as CSV. | Done (Bulk Actions) | Phase 3 & 10 |
 | 8 | **A Dashboard** | Live stats (open orders, placed today, served today, revenue today); breakdowns by status & waiter; 14-day served trend chart. | Pending | Phase 8 |
-| 9 | **History You Cannot Rewrite** | Append-only audit trail logging status changes, line additions, voids with reason, and notes (uneditable). | Pending | Phase 5 |
+| 9 | **History You Cannot Rewrite** | Append-only audit trail logging status changes, line additions, voids with reason, and notes (uneditable). | Done | Phase 5 |
 | 10 | **Slow-Order Alerts** | Time threshold detection (> N mins without `Ready`); navigation count badge; acknowledge & re-alert (after M mins). | Pending | Phase 9 |
 
 ---
@@ -43,7 +43,7 @@ This document tracks all required deliverables, architectural rules, and 10 core
 - [x] **Phase 2: Authentication & Authorization** — Register/Login APIs, JWT middleware, role checks, React Auth Context, Login/Register pages.
 - [x] **Phase 3: Menu Management & Bulk Actions** — Menu CRUD, availability toggle, bulk update with per-item pass/fail reporting, Manager UI.
 - [x] **Phase 4: Orders Core & Server Search/Pagination** — Create order API, order lines with `price_at_add` snapshot, filterable/searchable/paginated SQL queries, Orders UI.
-- [ ] **Phase 5: Lifecycle Transition Rules & Audit Trail** — Server state machine validation, append-only `audit_logs` insertion, Lifecycle UI buttons.
+- [x] **Phase 5: Lifecycle Transition Rules & Audit Trail** — Server state machine validation, append-only `audit_logs` insertion, Lifecycle UI buttons & timeline modal.
 - [ ] **Phase 6: Order Lines Voiding & Management** — Void line with mandatory reason, Order Line management UI.
 - [ ] **Phase 7: Collaborators Management** — Add/remove collaborators, consolidated "My Orders" waiter view.
 - [ ] **Phase 8: Dashboard & Recharts Visualization** — SQL aggregations (`SUM`, `COUNT`, `DATE_TRUNC`), live KPI cards, status/waiter breakdowns, 14-day trend line chart.

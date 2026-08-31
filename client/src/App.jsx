@@ -8,7 +8,6 @@ import MenuPage from './pages/MenuPage';
 import OrdersPage from './pages/OrdersPage';
 import { Utensils, LayoutDashboard, LogOut, Shield, User, ShoppingBag } from 'lucide-react';
 
-// Main App Layout Wrapper with Top Navigation Bar
 function MainLayout({ children }) {
   const { user, logout, isManager } = useAuth();
   const location = useLocation();
@@ -21,11 +20,9 @@ function MainLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      {/* Top Navbar Header */}
-      <header className="bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-40 shadow-lg">
+      <header className="bg-slate-900/90 backdrop-blur-xl border-b border-slate-800 sticky top-0 z-30 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
 
-          {/* Brand Logo & Nav Links Container */}
           <div className="flex items-center gap-4 sm:gap-6 min-w-0">
             <Link to="/" className="flex items-center gap-2.5 group shrink-0">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
@@ -37,7 +34,6 @@ function MainLayout({ children }) {
               </div>
             </Link>
 
-            {/* Always Visible Responsive Nav Links */}
             <nav className="flex items-center gap-1 pl-3 sm:pl-4 border-l border-slate-800 overflow-x-auto py-1">
               {navLinks.map((link) => {
                 const Icon = link.icon;
@@ -60,7 +56,6 @@ function MainLayout({ children }) {
             </nav>
           </div>
 
-          {/* User Profile & Logout */}
           <div className="flex items-center gap-3 shrink-0">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800">
               {isManager ? (
@@ -93,7 +88,6 @@ function MainLayout({ children }) {
         </div>
       </header>
 
-      {/* Main Page Content Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
         {children}
       </main>
@@ -101,7 +95,6 @@ function MainLayout({ children }) {
   );
 }
 
-// Placeholder Home Page Dashboard
 function PlaceholderHome() {
   const { user } = useAuth();
 
@@ -143,11 +136,9 @@ export default function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          {/* Public Authentication Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
 
-          {/* Protected Routes */}
           <Route
             path="/"
             element={

@@ -6,7 +6,7 @@ const { requireRole } = require('../middleware/roleCheck');
 
 const router = express.Router();
 
-// Helper middleware for input validation errors
+// Input validation error handler
 const validate = (req, res, next) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -15,15 +15,10 @@ const validate = (req, res, next) => {
     next();
 };
 
-/**
- * GET /api/menu
- * List all menu items
- * Accessible by both WAITER and MANAGER
- * Query param: ?includeArchived=true (Managers can view archived items)
- */
+// Get all menu items
 router.get('/', authenticateToken, async (req, res, next) => {
     try {
-        const includeArchived = req.query.includeArchived === 'true';
+        const includeArchived = req.query.includeArchived === 'true' && req.user.role === 'MANAGER';
         const items = await menuService.getAllMenuItems(includeArchived);
         res.json(items);
     } catch (err) {
@@ -31,10 +26,7 @@ router.get('/', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * GET /api/menu/:id
- * Get single menu item by ID
- */
+// Get single menu item by ID
 router.get('/:id', authenticateToken, async (req, res, next) => {
     try {
         const item = await menuService.getMenuItemById(req.params.id);
@@ -44,11 +36,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
     }
 });
 
-/**
- * POST /api/menu
- * Create a new menu item
- * MANAGER ONLY
- */
+// Create new menu item (Manager Only)
 router.post(
     '/',
     authenticateToken,
@@ -69,18 +57,33 @@ router.post(
     }
 );
 
-/**
- * PUT /api/menu/:id
- * Update a menu item (name, price, availability)
- * MANAGER ONLY
- */
+// Bulk update menu items with per-item reporting (Manager Only)
+router.patch(
+    '/bulk',
+    authenticateToken,
+    requireRole('MANAGER'),
+    [
+        body('updates').isArray({ min: 1 }).withMessage('Updates array is required.'),
+        validate
+    ],
+    async (req, res, next) => {
+        try {
+            const results = await menuService.bulkUpdateMenuItems(req.body.updates);
+            res.json({ results });
+        } catch (err) {
+            next(err);
+        }
+    }
+);
+
+// Update menu item (Manager Only)
 router.put(
     '/:id',
     authenticateToken,
     requireRole('MANAGER'),
     [
         body('name').optional().trim().notEmpty().withMessage('Name cannot be empty.'),
-        body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a non-negative number.'),
+        body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a valid non-negative number.'),
         body('available').optional().isBoolean().withMessage('Available must be a boolean.'),
         validate
     ],
@@ -94,47 +97,19 @@ router.put(
     }
 );
 
-/**
- * PATCH /api/menu/:id/archive
- * Archive (soft-delete) or restore a menu item
- * MANAGER ONLY
- */
+// Soft-delete (archive) or restore menu item (Manager Only)
 router.patch(
     '/:id/archive',
     authenticateToken,
     requireRole('MANAGER'),
     [
-        body('archived').isBoolean().withMessage('Archived field must be a boolean (true/false).'),
+        body('archived').isBoolean().withMessage('Archived must be a boolean.'),
         validate
     ],
     async (req, res, next) => {
         try {
-            const item = await menuService.setArchiveStatus(req.params.id, req.body.archived);
-            res.json(item);
-        } catch (err) {
-            next(err);
-        }
-    }
-);
-
-/**
- * PATCH /api/menu/bulk
- * Bulk update price or availability for multiple menu items at once
- * MANAGER ONLY
- * Assignment Rule: Must return per-item pass/fail results array!
- */
-router.patch(
-    '/bulk',
-    authenticateToken,
-    requireRole('MANAGER'),
-    [
-        body('updates').isArray({ min: 1 }).withMessage('Updates payload must be a non-empty array.'),
-        validate
-    ],
-    async (req, res, next) => {
-        try {
-            const results = await menuService.bulkUpdateMenuItems(req.body.updates);
-            res.json({ results });
+            const updatedItem = await menuService.setArchiveStatus(req.params.id, req.body.archived);
+            res.json(updatedItem);
         } catch (err) {
             next(err);
         }
