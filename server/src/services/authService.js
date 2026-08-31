@@ -97,8 +97,20 @@ async function getUserById(id) {
     return result.rows[0];
 }
 
+// Get all waiter users for collaborator assignment pickers
+async function getAllWaiters() {
+    const result = await db.query(
+        `SELECT id, name, email, role 
+         FROM users 
+         WHERE role = 'WAITER' 
+         ORDER BY name ASC`
+    );
+    return result.rows;
+}
+
 module.exports = {
     registerUser,
     loginUser,
-    getUserById
+    getUserById,
+    getAllWaiters
 };

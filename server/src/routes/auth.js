@@ -18,10 +18,10 @@ const validate = (req, res, next) => {
 router.post(
     '/register',
     [
-        body('email').isEmail().withMessage('Valid email is required.').normalizeEmail(),
-        body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters.'),
+        body('email').isEmail().withMessage('Please provide a valid email address.').normalizeEmail(),
+        body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long.'),
         body('name').trim().notEmpty().withMessage('Name is required.'),
-        body('role').isIn(['MANAGER', 'WAITER', 'manager', 'waiter']).withMessage('Role must be MANAGER or WAITER.'),
+        body('role').optional().isIn(['MANAGER', 'WAITER']).withMessage('Role must be MANAGER or WAITER.'),
         validate
     ],
     async (req, res, next) => {
@@ -34,11 +34,11 @@ router.post(
     }
 );
 
-// Login existing user
+// Authenticate user login
 router.post(
     '/login',
     [
-        body('email').isEmail().withMessage('Valid email is required.').normalizeEmail(),
+        body('email').isEmail().withMessage('Please provide a valid email address.').normalizeEmail(),
         body('password').notEmpty().withMessage('Password is required.'),
         validate
     ],
@@ -52,11 +52,21 @@ router.post(
     }
 );
 
-// Get current authenticated user profile
+// Get authenticated user profile
 router.get('/me', authenticateToken, async (req, res, next) => {
     try {
         const user = await authService.getUserById(req.user.id);
-        res.json({ user });
+        res.json(user);
+    } catch (err) {
+        next(err);
+    }
+});
+
+// Get all waiter users for collaborator selection
+router.get('/waiters', authenticateToken, async (req, res, next) => {
+    try {
+        const waiters = await authService.getAllWaiters();
+        res.json(waiters);
     } catch (err) {
         next(err);
     }

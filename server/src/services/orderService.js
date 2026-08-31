@@ -225,7 +225,6 @@ async function voidOrderLine({ order_id, line_id, void_quantity, void_reason, ac
     }
 
     if (voidQty >= totalQty) {
-      // Full line void
       await client.query(
         `UPDATE order_lines
          SET voided = true, void_reason = $1, updated_at = NOW()
@@ -233,7 +232,6 @@ async function voidOrderLine({ order_id, line_id, void_quantity, void_reason, ac
         [void_reason.trim(), line_id]
       );
     } else {
-      // Partial line void: reduce active line quantity and insert new voided line row
       const remainingQty = totalQty - voidQty;
 
       await client.query(
@@ -282,6 +280,153 @@ async function voidOrderLine({ order_id, line_id, void_quantity, void_reason, ac
   }
 }
 
+// Add a waiter as collaborator to an active order (Goal #5)
+async function addOrderCollaborator({ order_id, waiter_id, actor_id }) {
+  if (!order_id || !waiter_id) {
+    const error = new Error('Order ID and Waiter ID are required.');
+    error.status = 400;
+    throw error;
+  }
+
+  const client = await db.getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    const orderRes = await client.query(
+      `SELECT * FROM orders WHERE id = $1 FOR UPDATE`,
+      [order_id]
+    );
+
+    if (orderRes.rowCount === 0) {
+      const error = new Error('Order not found.');
+      error.status = 404;
+      throw error;
+    }
+
+    const order = orderRes.rows[0];
+    if (order.archived || ['SERVED', 'CANCELLED'].includes(order.status)) {
+      const error = new Error('Cannot add collaborators to a completed or archived order.');
+      error.status = 400;
+      throw error;
+    }
+
+    if (order.primary_waiter_id === waiter_id) {
+      const error = new Error('Primary waiter cannot be added as a collaborator to their own order.');
+      error.status = 400;
+      throw error;
+    }
+
+    const userRes = await client.query(
+      `SELECT id, name, email, role FROM users WHERE id = $1`,
+      [waiter_id]
+    );
+
+    if (userRes.rowCount === 0) {
+      const error = new Error('Waiter user not found.');
+      error.status = 404;
+      throw error;
+    }
+
+    const targetUser = userRes.rows[0];
+
+    const collabRes = await client.query(
+      `INSERT INTO order_collaborators (order_id, waiter_id)
+       VALUES ($1, $2)
+       ON CONFLICT (order_id, waiter_id) DO NOTHING
+       RETURNING *`,
+      [order_id, waiter_id]
+    );
+
+    if (collabRes.rowCount > 0) {
+      await client.query(
+        `INSERT INTO audit_logs (order_id, user_id, action, details)
+         VALUES ($1, $2, 'COLLABORATOR_ADDED', $3)`,
+        [
+          order_id,
+          actor_id,
+          JSON.stringify({
+            message: `Added ${targetUser.name} (${targetUser.email}) as collaborator`,
+            collaboratorId: waiter_id
+          })
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+    return getOrderById(order_id);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Remove a collaborator from an order (Goal #5)
+async function removeOrderCollaborator({ order_id, waiter_id, actor_id }) {
+  const client = await db.getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    const userRes = await client.query(
+      `SELECT name, email FROM users WHERE id = $1`,
+      [waiter_id]
+    );
+
+    const userName = userRes.rowCount > 0 ? userRes.rows[0].name : 'Waiter';
+
+    const deleteRes = await client.query(
+      `DELETE FROM order_collaborators
+       WHERE order_id = $1 AND waiter_id = $2
+       RETURNING *`,
+      [order_id, waiter_id]
+    );
+
+    if (deleteRes.rowCount > 0) {
+      await client.query(
+        `INSERT INTO audit_logs (order_id, user_id, action, details)
+         VALUES ($1, $2, 'COLLABORATOR_REMOVED', $3)`,
+        [
+          order_id,
+          actor_id,
+          JSON.stringify({
+            message: `Removed ${userName} from order collaborators`,
+            collaboratorId: waiter_id
+          })
+        ]
+      );
+    }
+
+    await client.query('COMMIT');
+    return getOrderById(order_id);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// Get all collaborators for an order
+async function getOrderCollaborators(orderId) {
+  const result = await db.query(
+    `SELECT 
+       oc.id as collaboration_id,
+       oc.created_at as collaborated_at,
+       u.id as waiter_id,
+       u.name as waiter_name,
+       u.email as waiter_email
+     FROM order_collaborators oc
+     JOIN users u ON oc.waiter_id = u.id
+     WHERE oc.order_id = $1
+     ORDER BY oc.created_at ASC`,
+    [orderId]
+  );
+  return result.rows;
+}
+
 // Get single order by ID
 async function getOrderById(id) {
   const orderRes = await db.query(
@@ -317,7 +462,20 @@ async function getOrderById(id) {
     [id]
   );
 
+  const collabsRes = await db.query(
+    `SELECT 
+       oc.id as collaboration_id,
+       u.id as waiter_id,
+       u.name as waiter_name,
+       u.email as waiter_email
+     FROM order_collaborators oc
+     JOIN users u ON oc.waiter_id = u.id
+     WHERE oc.order_id = $1`,
+    [id]
+  );
+
   order.lines = linesRes.rows;
+  order.collaborators = collabsRes.rows;
   return order;
 }
 
@@ -527,6 +685,9 @@ module.exports = {
   createOrder,
   addOrderLine,
   voidOrderLine,
+  addOrderCollaborator,
+  removeOrderCollaborator,
+  getOrderCollaborators,
   getOrderById,
   getOrders,
   setOrderArchiveStatus,

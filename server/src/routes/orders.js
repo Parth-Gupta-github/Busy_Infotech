@@ -91,6 +91,60 @@ router.patch(
   }
 );
 
+// Add a collaborator waiter to an active order (Goal #5)
+router.post(
+  '/:id/collaborators',
+  authenticateToken,
+  [
+    body('waiter_id').trim().notEmpty().withMessage('Waiter ID is required.'),
+    validate
+  ],
+  async (req, res, next) => {
+    try {
+      const updatedOrder = await orderService.addOrderCollaborator({
+        order_id: req.params.id,
+        waiter_id: req.body.waiter_id,
+        actor_id: req.user.id
+      });
+      res.json(updatedOrder);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// Remove a collaborator waiter from an order (Goal #5)
+router.delete(
+  '/:id/collaborators/:waiterId',
+  authenticateToken,
+  async (req, res, next) => {
+    try {
+      const updatedOrder = await orderService.removeOrderCollaborator({
+        order_id: req.params.id,
+        waiter_id: req.params.waiterId,
+        actor_id: req.user.id
+      });
+      res.json(updatedOrder);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// Get all collaborators for an order (Goal #5)
+router.get(
+  '/:id/collaborators',
+  authenticateToken,
+  async (req, res, next) => {
+    try {
+      const collaborators = await orderService.getOrderCollaborators(req.params.id);
+      res.json(collaborators);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // List paginated and filtered orders
 router.get(
   '/',

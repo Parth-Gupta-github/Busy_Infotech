@@ -14,7 +14,7 @@ export function AuthProvider({ children }) {
       if (token) {
         try {
           const data = await apiFetch('/auth/me');
-          setUser(data.user);
+          setUser(data.user || data);
         } catch (err) {
           console.error('Failed to load user profile:', err);
           logout();

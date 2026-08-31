@@ -7,6 +7,9 @@ import {
   Minus,
   Search,
   User,
+  Users,
+  UserPlus,
+  UserMinus,
   Clock,
   ChevronLeft,
   ChevronRight,
@@ -24,7 +27,8 @@ import {
   CheckCheck,
   Ban,
   History,
-  Grid
+  Grid,
+  Filter
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -52,9 +56,13 @@ export default function OrdersPage() {
   // Menu items list for order creation & line addition pickers
   const [menuItems, setMenuItems] = useState([]);
 
+  // Waiter Users list for collaborator selection (Goal #5)
+  const [waiterUsers, setWaiterUsers] = useState([]);
+
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [showMyOrdersOnly, setShowMyOrdersOnly] = useState(() => !isManager);
   const [page, setPage] = useState(1);
 
   // Create Order Modal State
@@ -81,6 +89,12 @@ export default function OrdersPage() {
   const [voidReason, setVoidReason] = useState('');
   const [voidError, setVoidError] = useState('');
 
+  // Collaborators Management Modal State (Goal #5)
+  const [managingCollabsOrder, setManagingCollabsOrder] = useState(null);
+  const [collabWaitersList, setCollabWaitersList] = useState([]);
+  const [selectedCollabWaiterId, setSelectedCollabWaiterId] = useState('');
+  const [collabError, setCollabError] = useState('');
+
   // Order Details View Modal State
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
 
@@ -99,6 +113,7 @@ export default function OrdersPage() {
       let endpoint = `/orders?page=${page}&limit=10`;
       if (searchQuery.trim()) endpoint += `&search=${encodeURIComponent(searchQuery.trim())}`;
       if (statusFilter !== 'ALL') endpoint += `&status=${encodeURIComponent(statusFilter)}`;
+      if (showMyOrdersOnly && user?.id) endpoint += `&waiterId=${encodeURIComponent(user.id)}`;
 
       const data = await apiFetch(endpoint);
       setOrders(data.orders || []);
@@ -110,7 +125,7 @@ export default function OrdersPage() {
     }
   };
 
-  // Fetch Available Menu Items for the Dish Picker
+  // Fetch Available Menu Items
   const fetchMenuItems = async () => {
     try {
       const data = await apiFetch('/menu');
@@ -125,10 +140,28 @@ export default function OrdersPage() {
     }
   };
 
+  // Fetch Waiters for Collaborator Assignment (Goal #5)
+  const fetchWaiters = async () => {
+    try {
+      const data = await apiFetch('/auth/waiters');
+      setWaiterUsers(data || []);
+      if (data && data.length > 0) {
+        setSelectedCollabWaiterId(data[0].id);
+      }
+    } catch (err) {
+      console.error('Failed to load waiters list:', err);
+    }
+  };
+
   useEffect(() => {
     fetchOrders();
     fetchMenuItems();
-  }, [page, statusFilter]);
+    fetchWaiters();
+  }, [page, statusFilter, showMyOrdersOnly, user?.id]);
+
+  useEffect(() => {
+    setShowMyOrdersOnly(!isManager);
+  }, [user?.id, isManager]);
 
   // Debounced Search Trigger
   useEffect(() => {
@@ -299,6 +332,73 @@ export default function OrdersPage() {
     }
   };
 
+  // Open Manage Collaborators Modal (Goal #5)
+  const handleOpenManageCollabs = async (ord) => {
+    try {
+      setManagingCollabsOrder(ord);
+      setCollabError('');
+      const collabs = await apiFetch(`/orders/${ord.id}/collaborators`);
+      setCollabWaitersList(collabs || []);
+    } catch (err) {
+      alert(err.message || 'Failed to load collaborators.');
+    }
+  };
+
+  // Submit Add Collaborator Waiter (Goal #5)
+  const handleAddCollaborator = async (e) => {
+    e.preventDefault();
+    if (!managingCollabsOrder || !selectedCollabWaiterId) return;
+
+    try {
+      setActionLoading(true);
+      setCollabError('');
+
+      const updatedOrder = await apiFetch(`/orders/${managingCollabsOrder.id}/collaborators`, {
+        method: 'POST',
+        body: JSON.stringify({ waiter_id: selectedCollabWaiterId })
+      });
+
+      const updatedCollabs = await apiFetch(`/orders/${managingCollabsOrder.id}/collaborators`);
+      setCollabWaitersList(updatedCollabs || []);
+
+      if (selectedOrderDetails && selectedOrderDetails.id === updatedOrder.id) {
+        setSelectedOrderDetails(updatedOrder);
+      }
+      fetchOrders();
+    } catch (err) {
+      setCollabError(err.message || 'Failed to add collaborator.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Submit Remove Collaborator Waiter (Goal #5)
+  const handleRemoveCollaborator = async (waiterId) => {
+    if (!managingCollabsOrder) return;
+
+    try {
+      setActionLoading(true);
+      setCollabError('');
+
+      const updatedOrder = await apiFetch(
+        `/orders/${managingCollabsOrder.id}/collaborators/${waiterId}`,
+        { method: 'DELETE' }
+      );
+
+      const updatedCollabs = await apiFetch(`/orders/${managingCollabsOrder.id}/collaborators`);
+      setCollabWaitersList(updatedCollabs || []);
+
+      if (selectedOrderDetails && selectedOrderDetails.id === updatedOrder.id) {
+        setSelectedOrderDetails(updatedOrder);
+      }
+      fetchOrders();
+    } catch (err) {
+      setCollabError(err.message || 'Failed to remove collaborator.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Transition Order Lifecycle Status (Goal #4)
   const handleStatusTransition = async (orderId, newStatus) => {
     try {
@@ -379,7 +479,7 @@ export default function OrdersPage() {
             <h1 className="text-2xl font-bold text-slate-100">Orders</h1>
           </div>
           <p className="text-slate-400 text-xs mt-1">
-            Manage orders, select tables, void dish lines with mandatory reasons, and view audit history
+            Manage orders, select tables, assign collaborators, void dish lines, and view audit history
           </p>
         </div>
 
@@ -439,8 +539,26 @@ export default function OrdersPage() {
           />
         </div>
 
-        {/* Status Filters */}
-        <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+        {/* Filters & Consolidated "My Orders" Toggle (Goal #5) */}
+        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+          <button
+            onClick={() => {
+              setShowMyOrdersOnly(!showMyOrdersOnly);
+              setPage(1);
+            }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              showMyOrdersOnly
+                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                : 'bg-slate-950 text-slate-300 border border-slate-800 hover:text-white'
+            }`}
+            title="Toggle orders where you are Primary Waiter or Collaborator"
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>{showMyOrdersOnly ? 'My Orders Only' : 'All Orders'}</span>
+          </button>
+
+          <div className="h-4 w-px bg-slate-800 shrink-0"></div>
+
           {['ALL', 'PLACED', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'CANCELLED'].map((st) => (
             <button
               key={st}
@@ -468,7 +586,7 @@ export default function OrdersPage() {
         </div>
       ) : orders.length === 0 ? (
         <div className="p-12 text-center text-slate-500 text-sm bg-slate-900/60 backdrop-blur-md rounded-2xl border border-slate-800">
-          No orders found matching your search.
+          No orders found matching your search or filter.
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -549,6 +667,16 @@ export default function OrdersPage() {
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>Add Dish</span>
+                        </button>
+                      )}
+
+                      {isActiveOrder && (
+                        <button
+                          onClick={() => handleOpenManageCollabs(ord)}
+                          className="p-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
+                          title="Manage Collaborating Waiters"
+                        >
+                          <Users className="w-3.5 h-3.5" />
                         </button>
                       )}
 
@@ -689,6 +817,109 @@ export default function OrdersPage() {
             >
               <ChevronRight className="w-4 h-4" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Collaborators Modal (Goal #5) */}
+      {managingCollabsOrder && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-purple-400" />
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    Collaborators — {managingCollabsOrder.table_number}
+                  </h2>
+                  <p className="text-xs text-slate-400 font-mono">
+                    Primary Waiter: {managingCollabsOrder.primary_waiter_name}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setManagingCollabsOrder(null)} className="text-slate-400 hover:text-slate-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {collabError && (
+              <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{collabError}</span>
+              </div>
+            )}
+
+            {/* Current Collaborators List */}
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-purple-400">
+                Assigned Collaborators ({collabWaitersList.length})
+              </h3>
+
+              {collabWaitersList.length === 0 ? (
+                <p className="text-xs text-slate-500 italic bg-slate-950/50 p-3 rounded-xl border border-slate-800">
+                  No additional waiters assigned to this order yet.
+                </p>
+              ) : (
+                <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/40">
+                  {collabWaitersList.map((collab) => (
+                    <div key={collab.waiter_id} className="p-3 flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-semibold text-slate-200">{collab.waiter_name}</p>
+                        <p className="text-[11px] text-slate-500 font-mono">{collab.waiter_email}</p>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveCollaborator(collab.waiter_id)}
+                        disabled={actionLoading}
+                        className="px-2.5 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-[11px] font-semibold rounded-lg flex items-center gap-1 cursor-pointer"
+                      >
+                        <UserMinus className="w-3.5 h-3.5" />
+                        <span>Remove</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Add New Collaborator Form */}
+            <form onSubmit={handleAddCollaborator} className="pt-3 border-t border-slate-800 space-y-3">
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-300">
+                Assign Additional Waiter
+              </label>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedCollabWaiterId}
+                  onChange={(e) => setSelectedCollabWaiterId(e.target.value)}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-purple-500"
+                >
+                  {waiterUsers.map((w) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} ({w.email})
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-3.5 py-2 bg-purple-500 hover:bg-purple-600 text-white text-xs font-semibold rounded-xl flex items-center gap-1 cursor-pointer shrink-0"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Assign</span>
+                </button>
+              </div>
+            </form>
+
+            <div className="flex justify-end pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => setManagingCollabsOrder(null)}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1046,6 +1277,13 @@ export default function OrdersPage() {
 
             <div className="space-y-2 text-xs text-slate-300 bg-slate-950/50 p-3 rounded-xl border border-slate-800">
               <p><strong>Primary Waiter:</strong> {selectedOrderDetails.primary_waiter_name}</p>
+              
+              {selectedOrderDetails.collaborators && selectedOrderDetails.collaborators.length > 0 && (
+                <p className="text-purple-400">
+                  <strong>Collaborators:</strong> {selectedOrderDetails.collaborators.map(c => c.waiter_name).join(', ')}
+                </p>
+              )}
+
               <p><strong>Created At:</strong> {new Date(selectedOrderDetails.created_at).toLocaleString()}</p>
               {selectedOrderDetails.notes && <p><strong>Notes:</strong> {selectedOrderDetails.notes}</p>}
             </div>

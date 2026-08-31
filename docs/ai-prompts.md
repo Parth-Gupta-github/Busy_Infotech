@@ -107,3 +107,17 @@ Complete line voiding service logic, route handler, void quantity selector, mand
 #### What you corrected
 - **Partial Line Quantity Voiding:** Added support for voiding 1 out of N quantity (e.g., voiding 1 of 3 pizzas decrements active line quantity to 2 and inserts a new voided line item row for 1x for audit precision).
 - **Mandatory Void Reason Guard:** Ensured both server and client validate that `void_reason` is non-empty before updating PostgreSQL.
+
+---
+
+### Collaborators Management & "My Orders" Consolidated View (Phase 7)
+
+#### Prompt
+"Build Phase 7 Collaborators Management & Consolidated My Orders View: addOrderCollaborator and removeOrderCollaborator functions in orderService.js with UNIQUE(order_id, waiter_id) constraint handling and audit trail logging, POST/DELETE/GET collaborator endpoints in routes/orders.js, GET /api/auth/waiters endpoint, and OrdersPage.jsx Manage Collaborators modal & My Orders role-based default view toggle."
+
+#### What you got
+Complete collaborator management functions, API endpoints, waiter selection dropdown, collaborator assignment modal, and role-based default view filter.
+
+#### What you corrected
+- **Role-Based Default View:** Configured `showMyOrdersOnly` to default to `true` for Waiter roles (showing only orders they placed or collaborate on) and `false` for Manager roles (showing all restaurant orders).
+- **Session Profile Restoration:** Fixed `AuthContext.jsx` profile restoration on `GET /api/auth/me` to prevent session logout redirects.
