@@ -75,6 +75,12 @@ export default function OrdersPage() {
   const [appendQuantity, setAppendQuantity] = useState(1);
   const [appendSpecialInstructions, setAppendSpecialInstructions] = useState('');
 
+  // Void Order Line Modal State (Goal #3 Part B)
+  const [voidingLineData, setVoidingLineData] = useState(null);
+  const [voidQuantity, setVoidQuantity] = useState(1);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidError, setVoidError] = useState('');
+
   // Order Details View Modal State
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
 
@@ -138,7 +144,6 @@ export default function OrdersPage() {
     const tableOptions = [];
     for (let i = 1; i <= totalTables; i++) {
       const name = `Table ${i}`;
-      // Check if table has active order
       const isOccupied = orders.some(o => 
         o.table_number.toLowerCase() === name.toLowerCase() && 
         !o.archived && 
@@ -223,7 +228,7 @@ export default function OrdersPage() {
     }
   };
 
-  // Submit Append Dish Line to Existing Active Order (Goal #3)
+  // Submit Append Dish Line to Existing Active Order
   const handleAppendDishLine = async (e) => {
     e.preventDefault();
     if (!addingLineToOrder || !appendMenuItemId) return;
@@ -248,6 +253,47 @@ export default function OrdersPage() {
       fetchOrders();
     } catch (err) {
       alert(err.message || 'Failed to add dish to order.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Submit Void Order Line with Mandatory Reason & Partial Quantity Support (Goal #3 Part B)
+  const handleVoidOrderLineSubmit = async (e) => {
+    e.preventDefault();
+    if (!voidingLineData) return;
+
+    if (!voidReason || !voidReason.trim()) {
+      setVoidError('Void reason is required when voiding an order line.');
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      setVoidError('');
+
+      const updatedOrder = await apiFetch(
+        `/orders/${voidingLineData.orderId}/lines/${voidingLineData.lineId}/void`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            void_quantity: parseInt(voidQuantity, 10) || voidingLineData.maxQuantity,
+            void_reason: voidReason.trim()
+          })
+        }
+      );
+
+      setVoidingLineData(null);
+      setVoidReason('');
+      setVoidQuantity(1);
+      setVoidError('');
+
+      if (selectedOrderDetails && selectedOrderDetails.id === updatedOrder.id) {
+        setSelectedOrderDetails(updatedOrder);
+      }
+      fetchOrders();
+    } catch (err) {
+      setVoidError(err.message || 'Failed to void order line.');
     } finally {
       setActionLoading(false);
     }
@@ -333,7 +379,7 @@ export default function OrdersPage() {
             <h1 className="text-2xl font-bold text-slate-100">Orders</h1>
           </div>
           <p className="text-slate-400 text-xs mt-1">
-            Manage orders, select tables, add dishes to active orders, execute lifecycle transitions, and view audit history
+            Manage orders, select tables, void dish lines with mandatory reasons, and view audit history
           </p>
         </div>
 
@@ -647,6 +693,82 @@ export default function OrdersPage() {
         </div>
       )}
 
+      {/* Void Order Line Modal with Mandatory Reason & Partial Quantity Support (Goal #3 Part B) */}
+      {voidingLineData && (
+        <div className="fixed inset-0 z-[110] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h2 className="text-lg font-bold text-red-400 flex items-center gap-2">
+                <Trash2 className="w-5 h-5" />
+                <span>Void Order Line</span>
+              </h2>
+              <button onClick={() => setVoidingLineData(null)} className="text-slate-400 hover:text-slate-200">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              You are voiding <strong className="text-slate-100">{voidingLineData.itemName}</strong>.
+              Select quantity to void and provide a mandatory reason.
+            </p>
+
+            {voidError && (
+              <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{voidError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleVoidOrderLineSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Quantity to Void (Max {voidingLineData.maxQuantity})
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max={voidingLineData.maxQuantity}
+                  value={voidQuantity}
+                  onChange={(e) => setVoidQuantity(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-red-500 font-mono"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Mandatory Void Reason *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={voidReason}
+                  onChange={(e) => setVoidReason(e.target.value)}
+                  placeholder="e.g. Customer changed mind, kitchen out of ingredient"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-red-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setVoidingLineData(null)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={actionLoading}
+                  className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-xl cursor-pointer"
+                >
+                  {actionLoading ? 'Voiding...' : `Void ${voidQuantity} Item(s)`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Add Dish Line to Existing Active Order Modal */}
       {addingLineToOrder && (
         <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
@@ -928,7 +1050,7 @@ export default function OrdersPage() {
               {selectedOrderDetails.notes && <p><strong>Notes:</strong> {selectedOrderDetails.notes}</p>}
             </div>
 
-            {/* Order Lines with price_at_add snapshots */}
+            {/* Order Lines with price_at_add snapshots & Voiding (Goal #3 Part B) */}
             <div className="space-y-2 pt-2">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-400">
@@ -955,22 +1077,50 @@ export default function OrdersPage() {
                 <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/40">
                   {selectedOrderDetails.lines.map((line) => (
                     <div key={line.id} className="p-3 flex items-start justify-between gap-3 text-xs">
-                      <div>
-                        <p className="font-semibold text-slate-200">
+                      <div className="flex-1">
+                        <p className={`font-semibold ${line.voided ? 'line-through text-slate-500' : 'text-slate-200'}`}>
                           {line.quantity}x {line.item_name}
                         </p>
                         <p className="text-[11px] text-slate-500 font-mono">
                           Price snapshot at add: ₹{parseFloat(line.price_at_add).toFixed(2)} each
                         </p>
                         {line.special_instructions && (
-                          <p className="text-[11px] text-amber-400 italic mt-1">
+                          <p className="text-[11px] text-amber-400 italic mt-0.5">
                             Note: {line.special_instructions}
                           </p>
                         )}
+                        {line.voided && (
+                          <p className="text-[11px] text-red-400 font-medium italic mt-1 bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20 inline-block">
+                            Voided: "{line.void_reason}"
+                          </p>
+                        )}
                       </div>
-                      <span className="font-mono font-bold text-emerald-400">
-                        ₹{(line.quantity * parseFloat(line.price_at_add)).toFixed(2)}
-                      </span>
+
+                      <div className="flex items-center gap-3 text-right">
+                        <span className={`font-mono font-bold ${line.voided ? 'line-through text-slate-600' : 'text-emerald-400'}`}>
+                          ₹{(line.quantity * parseFloat(line.price_at_add)).toFixed(2)}
+                        </span>
+
+                        {!line.voided && !['SERVED', 'CANCELLED'].includes((selectedOrderDetails.status || '').toUpperCase()) && (
+                          <button
+                            onClick={() => {
+                              setVoidReason('');
+                              setVoidQuantity(1);
+                              setVoidError('');
+                              setVoidingLineData({
+                                orderId: selectedOrderDetails.id,
+                                lineId: line.id,
+                                itemName: line.item_name,
+                                maxQuantity: line.quantity
+                              });
+                            }}
+                            className="p-1 text-slate-500 hover:text-red-400 transition-colors cursor-pointer"
+                            title="Void Order Line Item"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>

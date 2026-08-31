@@ -181,6 +181,107 @@ async function addOrderLine({ order_id, menu_item_id, quantity = 1, special_inst
   }
 }
 
+// Void full or partial order line quantity with mandatory reason
+async function voidOrderLine({ order_id, line_id, void_quantity, void_reason, actor_id }) {
+  if (!void_reason || void_reason.trim() === '') {
+    const error = new Error('Void reason is required when voiding an order line.');
+    error.status = 400;
+    throw error;
+  }
+
+  const client = await db.getClient();
+
+  try {
+    await client.query('BEGIN');
+
+    const lineRes = await client.query(
+      `SELECT ol.*, mi.name as item_name
+       FROM order_lines ol
+       JOIN menu_items mi ON ol.menu_item_id = mi.id
+       WHERE ol.id = $1 AND ol.order_id = $2 FOR UPDATE`,
+      [line_id, order_id]
+    );
+
+    if (lineRes.rowCount === 0) {
+      const error = new Error('Order line not found.');
+      error.status = 404;
+      throw error;
+    }
+
+    const line = lineRes.rows[0];
+    if (line.voided) {
+      const error = new Error('This order line has already been voided.');
+      error.status = 400;
+      throw error;
+    }
+
+    const totalQty = parseInt(line.quantity, 10);
+    const voidQty = void_quantity !== undefined ? parseInt(void_quantity, 10) : totalQty;
+
+    if (isNaN(voidQty) || voidQty < 1 || voidQty > totalQty) {
+      const error = new Error(`Void quantity must be between 1 and ${totalQty}.`);
+      error.status = 400;
+      throw error;
+    }
+
+    if (voidQty >= totalQty) {
+      // Full line void
+      await client.query(
+        `UPDATE order_lines
+         SET voided = true, void_reason = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [void_reason.trim(), line_id]
+      );
+    } else {
+      // Partial line void: reduce active line quantity and insert new voided line row
+      const remainingQty = totalQty - voidQty;
+
+      await client.query(
+        `UPDATE order_lines
+         SET quantity = $1, updated_at = NOW()
+         WHERE id = $2`,
+        [remainingQty, line_id]
+      );
+
+      await client.query(
+        `INSERT INTO order_lines (order_id, menu_item_id, quantity, price_at_add, special_instructions, voided, void_reason)
+         VALUES ($1, $2, $3, $4, $5, true, $6)`,
+        [
+          order_id,
+          line.menu_item_id,
+          voidQty,
+          line.price_at_add,
+          line.special_instructions,
+          void_reason.trim()
+        ]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO audit_logs (order_id, user_id, action, details)
+       VALUES ($1, $2, 'LINE_VOIDED', $3)`,
+      [
+        order_id,
+        actor_id,
+        JSON.stringify({
+          message: `Voided ${voidQty}x ${line.item_name} (${totalQty - voidQty} remaining). Reason: ${void_reason.trim()}`,
+          lineId: line_id,
+          voidedQty: voidQty,
+          reason: void_reason.trim()
+        })
+      ]
+    );
+
+    await client.query('COMMIT');
+    return getOrderById(order_id);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // Get single order by ID
 async function getOrderById(id) {
   const orderRes = await db.query(
@@ -425,6 +526,7 @@ async function getOrderAuditLogs(orderId) {
 module.exports = {
   createOrder,
   addOrderLine,
+  voidOrderLine,
   getOrderById,
   getOrders,
   setOrderArchiveStatus,

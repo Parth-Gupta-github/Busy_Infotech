@@ -40,7 +40,7 @@ router.post(
   }
 );
 
-// Add a new dish line to an existing active order (Goal #3)
+// Add a new dish line to an existing active order
 router.post(
   '/:id/lines',
   authenticateToken,
@@ -57,6 +57,31 @@ router.post(
         menu_item_id: req.body.menu_item_id,
         quantity: req.body.quantity || 1,
         special_instructions: req.body.special_instructions,
+        actor_id: req.user.id
+      });
+      res.json(updatedOrder);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// Void full or partial order line quantity with mandatory reason
+router.patch(
+  '/:id/lines/:lineId/void',
+  authenticateToken,
+  [
+    body('void_reason').trim().notEmpty().withMessage('Void reason is required when voiding an order line.'),
+    body('void_quantity').optional().isInt({ min: 1 }).toInt(),
+    validate
+  ],
+  async (req, res, next) => {
+    try {
+      const updatedOrder = await orderService.voidOrderLine({
+        order_id: req.params.id,
+        line_id: req.params.lineId,
+        void_quantity: req.body.void_quantity,
+        void_reason: req.body.void_reason,
         actor_id: req.user.id
       });
       res.json(updatedOrder);
