@@ -121,3 +121,17 @@ Complete collaborator management functions, API endpoints, waiter selection drop
 #### What you corrected
 - **Role-Based Default View:** Configured `showMyOrdersOnly` to default to `true` for Waiter roles (showing only orders they placed or collaborate on) and `false` for Manager roles (showing all restaurant orders).
 - **Session Profile Restoration:** Fixed `AuthContext.jsx` profile restoration on `GET /api/auth/me` to prevent session logout redirects.
+
+---
+
+### Dark / Light Mode Theme Switcher Feature
+
+#### Prompt
+"Build Dark / Light Mode Theme Switcher toggle button on top navbar with localStorage persistence, Moon/Sun icons, and global CSS theme rules in index.css for high-contrast card, table, and modal styling."
+
+#### What you got
+Complete theme toggle button in `App.jsx`, localStorage preference saving, Sun/Moon icon toggle, and light mode CSS overrides in `index.css`.
+
+#### What you corrected
+- **Icon Tooltip Logic:** Set Moon icon for Dark Mode and Sun icon for Light Mode with clear descriptive tooltips.
+- **Light Mode UI Overrides:** Added light mode CSS rules for modal backdrops, cards, slate buttons, table headers, and input fields.
