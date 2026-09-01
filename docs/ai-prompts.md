@@ -135,3 +135,17 @@ Complete theme toggle button in `App.jsx`, localStorage preference saving, Sun/M
 #### What you corrected
 - **Icon Tooltip Logic:** Set Moon icon for Dark Mode and Sun icon for Light Mode with clear descriptive tooltips.
 - **Light Mode UI Overrides:** Added light mode CSS rules for modal backdrops, cards, slate buttons, table headers, and input fields.
+
+---
+
+### Dashboard & Analytics Implementation (Phase 8)
+
+#### Prompt
+"Build Phase 8 Dashboard & Analytics (Goal #8): raw SQL dashboard service (dashboardService.js) for headline KPI stat cards, status breakdown, waiter performance breakdown (Served vs Pending revenue), 14-day trend query using generate_series(), Express router (routes/dashboard.js), and DashboardPage.jsx UI with Recharts line chart."
+
+#### What you got
+Complete dashboard service, routes, and `DashboardPage.jsx` component featuring KPI cards, status distribution bars, waiter performance leaderboard with Served vs Pending revenue split, and Recharts 14-day served orders trend line chart.
+
+#### What you corrected
+- **Empty Order Safeguard:** Enhanced `orderService.js` and `OrdersPage.jsx` to strictly block placing or accepting empty orders (0 lines).
+- **Waiter Performance Revenue Breakdown:** Separated waiter performance into Served Revenue (earned till now) and Pending Revenue (active ongoing orders).

@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import MenuPage from './pages/MenuPage';
 import OrdersPage from './pages/OrdersPage';
+import DashboardPage from './pages/DashboardPage';
 import { Utensils, LayoutDashboard, LogOut, Shield, User, ShoppingBag, Sun, Moon } from 'lucide-react';
 
 function MainLayout({ children }) {
@@ -95,7 +96,7 @@ function MainLayout({ children }) {
 
           {/* Theme Toggle, User Profile & Logout */}
           <div className="flex items-center gap-3 shrink-0">
-            {/* Dark / Light Theme Toggle Button (Moon = Dark Mode Active, Sun = Light Mode Active) */}
+            {/* Dark / Light Theme Toggle Button */}
             <button
               onClick={toggleTheme}
               className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-center ${
@@ -157,42 +158,6 @@ function MainLayout({ children }) {
   );
 }
 
-function PlaceholderHome() {
-  const { user } = useAuth();
-
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-6">
-      <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 mb-4 shadow-xl">
-        <LayoutDashboard className="w-8 h-8" />
-      </div>
-      <h1 className="text-3xl font-extrabold tracking-tight mb-2">
-        Welcome to Dashboard
-      </h1>
-      <p className="text-slate-400 text-sm max-w-md mb-6">
-        Log in active for <strong className="text-emerald-400">{user?.email}</strong> ({user?.role}).
-        Use the top navigation bar to access <strong className="text-emerald-400">Orders</strong> and <strong className="text-emerald-400">Menu Management</strong>.
-      </p>
-
-      <div className="flex items-center gap-3">
-        <Link
-          to="/orders"
-          className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2"
-        >
-          <ShoppingBag className="w-4 h-4" />
-          <span>Go to Orders</span>
-        </Link>
-        <Link
-          to="/menu"
-          className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-2"
-        >
-          <Utensils className="w-4 h-4" />
-          <span>Go to Menu</span>
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 export default function App() {
   return (
     <AuthProvider>
@@ -206,7 +171,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <MainLayout>
-                  <PlaceholderHome />
+                  <DashboardPage />
                 </MainLayout>
               </ProtectedRoute>
             }

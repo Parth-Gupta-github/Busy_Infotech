@@ -229,8 +229,14 @@ export default function OrdersPage() {
   // Submit Create Order Handler
   const handleCreateOrder = async (e) => {
     e.preventDefault();
-    setActionLoading(true);
     setModalError('');
+
+    if (!draftLines || draftLines.length === 0) {
+      setModalError('Please add at least 1 dish item to the order before placing.');
+      return;
+    }
+
+    setActionLoading(true);
 
     const payloadItems = draftLines.map(line => ({
       menu_item_id: line.menu_item_id,

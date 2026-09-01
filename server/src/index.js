@@ -18,8 +18,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/orders', require('./routes/orders'));
-// app.use('/api/orders', require('./routes/orders'));
-// app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/dashboard', require('./routes/dashboard'));
 // app.use('/api/alerts', require('./routes/alerts'));
 
 // ─── Error Handling ──────────────────────────────────────────────

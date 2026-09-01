@@ -18,6 +18,12 @@ async function createOrder({ table_number, notes, created_by_id, items = [] }) {
     throw error;
   }
 
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    const error = new Error('An order must contain at least 1 dish item before placing.');
+    error.status = 400;
+    throw error;
+  }
+
   const normalizedTable = table_number.trim();
   const client = await db.getClient();
 
@@ -629,6 +635,19 @@ async function updateOrderStatus(id, newStatus, actorId) {
       const error = new Error(msg);
       error.status = 400;
       throw error;
+    }
+
+    if (['ACCEPTED', 'PREPARING', 'READY', 'SERVED'].includes(targetStatus)) {
+      const linesCountRes = await client.query(
+        `SELECT COUNT(*) as count FROM order_lines WHERE order_id = $1 AND voided = false`,
+        [id]
+      );
+      const activeLinesCount = parseInt(linesCountRes.rows[0].count, 10) || 0;
+      if (activeLinesCount === 0) {
+        const error = new Error(`Cannot process or accept an empty order. Please add at least 1 dish line first.`);
+        error.status = 400;
+        throw error;
+      }
     }
 
     const updatedRes = await client.query(
