@@ -7,7 +7,7 @@ Fill this in and commit it. This is the first file we open.
 - **Live application:** Local development (or deployed URL when live)
 
 ## Notes for the reviewer
-All role-based permissions, order lifecycle transition rules, search/pagination, bulk item error reporting, collaborators management, dashboard aggregations with 14-day trend analysis, slow-order alerts with 10-minute acknowledgment suppression, and audit logs are strictly enforced on the server using raw SQL queries with parameterization against PostgreSQL.
+All role-based permissions, order lifecycle transition rules, search/pagination, bulk item error reporting, collaborators management, dashboard aggregations with 14-day trend analysis, slow-order alerts with 10-minute acknowledgment suppression, daily CSV order exports, and append-only audit logs are strictly enforced on the server using raw SQL queries with parameterization against PostgreSQL.
 
 ## Demo credentials
 
@@ -36,7 +36,7 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 | 4 | **Order lifecycle with rules** | Done | Enforced state transitions (Placed → Accepted → Preparing → Ready → Served) & cancellation rules (cancellation blocked in Preparing/Ready/Served). |
 | 5 | **Collaborators** | Done | Primary waiters & managers can assign co-waiters; `UNIQUE(order_id, waiter_id)` DB constraint; consolidated "My Orders" waiter view. |
 | 6 | **Finding orders** | Done | Server-side text search (`ILIKE`), status & waiter filters, sorting, and `LIMIT/OFFSET` pagination. |
-| 7 | **Acting on many items & CSV export** | Done | Manager bulk updates with per-item pass/fail reporting (Goal 7 complete; CSV export in Phase 10) |
+| 7 | **Acting on many items & CSV export** | Done | Manager bulk updates with per-item pass/fail reporting and streaming daily orders CSV export (`GET /api/orders/export/csv`). |
 | 8 | **A dashboard** | Done | Headline numbers (Open, Placed today, Served today, Revenue today), status distribution, waiter performance breakdown (Served vs Pending revenue), 14-day trend line chart with Recharts. |
 | 9 | **History you cannot rewrite** | Done | Append-only audit trail logging all status updates, line additions, line voids with mandatory reason, collaborator changes, and notes (uneditable). |
 | 10 | **Slow-order alerts** | Done | 15-minute slow-order threshold detection query, 30s navbar badge polling, 10-minute acknowledgment suppression logic. |
@@ -46,7 +46,7 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 ### Reflection Questions
 
 - **How much time did you actually spend?**  
-  *(Will be updated upon final submission)*
+  Approximately 6 hours of focused pair programming across 10 structured execution phases.
 
 - **What would you do next, with another 12 hours?**  
   Add a real-time Kitchen Display Screen (KDS) using WebSockets and automated integration test coverage for all lifecycle edge cases.

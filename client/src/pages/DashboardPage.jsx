@@ -10,7 +10,8 @@ import {
   User,
   AlertTriangle,
   RefreshCw,
-  Award
+  Award,
+  Download
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -37,6 +38,22 @@ export default function DashboardPage() {
       setError(err.message || 'Failed to load dashboard statistics.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Export Daily Orders CSV Handler (Goal #7 Part B - Today's Orders Only)
+  const handleExportCSV = async () => {
+    try {
+      const blob = await apiFetch('/orders/export/csv?date=today');
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `daily-orders-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      console.error('Failed to export CSV:', err);
     }
   };
 
@@ -87,13 +104,25 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <button
-          onClick={fetchDashboardStats}
-          className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all border border-slate-700 flex items-center gap-2 cursor-pointer shrink-0"
-        >
-          <RefreshCw className="w-4 h-4 text-emerald-400" />
-          <span>Refresh Data</span>
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Export Daily CSV Button (Goal #7 Part B) */}
+          <button
+            onClick={handleExportCSV}
+            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all border border-slate-700 flex items-center gap-2 cursor-pointer"
+            title="Download Daily Orders CSV Report"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Export Daily CSV</span>
+          </button>
+
+          <button
+            onClick={fetchDashboardStats}
+            className="px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-emerald-500/20 flex items-center gap-2 cursor-pointer"
+          >
+            <RefreshCw className="w-4 h-4" />
+            <span>Refresh Data</span>
+          </button>
+        </div>
       </div>
 
       {/* 1. Headline KPI Cards */}

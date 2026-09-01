@@ -30,7 +30,7 @@ This document tracks all required deliverables, architectural rules, and 10 core
 | 4 | **Order Lifecycle & Rules** | State flow: `Placed → Accepted → Preparing → Ready → Served`; cancel allowed ONLY in `Placed`/`Accepted`; line voiding with required reason. | Done | Phase 5 |
 | 5 | **Collaborators** | Primary waiter can add other waiters as collaborators; waiters see all orders they own or collaborate on. | Done | Phase 7 |
 | 6 | **Finding Orders** | Server-side text search over table numbers, status/waiter/date filters, sorting, and pagination. | Done | Phase 4 |
-| 7 | **Bulk Actions & CSV Export** | Manager bulk price/availability change reporting per-item pass/fail; export daily orders as CSV. | Done (Bulk Actions) | Phase 3 & 10 |
+| 7 | **Bulk Actions & CSV Export** | Manager bulk price/availability change reporting per-item pass/fail; export daily orders as CSV. | Done | Phase 3 & 10 |
 | 8 | **A Dashboard** | Live stats (open orders, placed today, served today, revenue today); breakdowns by status & waiter; 14-day trend line chart. | Done | Phase 8 |
 | 9 | **History You Cannot Rewrite** | Append-only audit trail logging status changes, line additions, voids with reason, and notes (uneditable). | Done | Phase 5 & 6 |
 | 10 | **Slow-Order Alerts** | Time threshold detection (> N mins without `Ready`); navigation count badge; acknowledge & re-alert (after M mins). | Done | Phase 9 |
@@ -48,4 +48,4 @@ This document tracks all required deliverables, architectural rules, and 10 core
 - [x] **Phase 7: Collaborators Management** — Add/remove collaborators, consolidated "My Orders" waiter view.
 - [x] **Phase 8: Dashboard & Recharts Visualization** — SQL aggregations (`SUM`, `COUNT`, `DATE_TRUNC`), live KPI cards, status/waiter breakdowns, 14-day trend line chart.
 - [x] **Phase 9: Slow-Order Alerts System** — Alert threshold SQL queries, 30s polling, navbar badge, acknowledge & re-alert mechanism.
-- [ ] **Phase 10: Daily CSV Export & Final Polish** — Streaming CSV download API endpoint, timeline UI component, final verification & `SUBMISSION.md` update.
+- [x] **Phase 10: Daily CSV Export & Final Polish** — Streaming CSV download API endpoint, timeline UI component, final verification & `SUBMISSION.md` update.

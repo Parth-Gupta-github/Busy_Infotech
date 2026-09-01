@@ -28,7 +28,8 @@ import {
   Ban,
   History,
   Grid,
-  Filter
+  Filter,
+  Download
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -475,43 +476,73 @@ export default function OrdersPage() {
 
   const tableOptionsList = getTableOptions();
 
+  // Export Daily Orders CSV Handler (Goal #7 Part B)
+  const handleExportCSV = async () => {
+    try {
+      let endpoint = '/orders/export/csv?';
+      if (searchQuery.trim()) endpoint += `&search=${encodeURIComponent(searchQuery.trim())}`;
+      if (statusFilter !== 'ALL') endpoint += `&status=${encodeURIComponent(statusFilter)}`;
+      if (showMyOrdersOnly && user?.id) endpoint += `&waiterId=${encodeURIComponent(user.id)}`;
+
+      const blob = await apiFetch(endpoint);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `daily-orders-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      console.error('Failed to export CSV:', err);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900/60 backdrop-blur-md p-6 rounded-2xl border border-slate-800">
         <div>
           <div className="flex items-center gap-2.5">
             <ShoppingBag className="w-6 h-6 text-emerald-400" />
-            <h1 className="text-2xl font-bold text-slate-100">Orders</h1>
+            <h1 className="text-2xl font-bold text-slate-100">Restaurant Orders</h1>
           </div>
           <p className="text-slate-400 text-xs mt-1">
-            Manage orders, select tables, assign collaborators, void dish lines, and view audit history
+            Manage table orders, order line items, lifecycle status transitions, and collaborators
           </p>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Manager Restaurant Table Capacity Control */}
+        <div className="flex items-center gap-3">
+          {/* Table Capacity Controller for Manager */}
           {isManager && (
-            <div className="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
-              <Grid className="w-4 h-4 text-emerald-400" />
-              <span className="text-slate-400 font-medium">Tables:</span>
+            <div className="flex items-center gap-1.5 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-semibold text-slate-300">
+              <span>Tables:</span>
               <button
                 onClick={() => handleUpdateTotalTables(totalTables - 1)}
-                className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold transition-colors cursor-pointer"
+                className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-200 transition-colors"
                 title="Decrease Restaurant Total Tables"
               >
                 <Minus className="w-3 h-3" />
               </button>
-              <span className="font-bold font-mono text-emerald-400 px-1 text-sm">{totalTables}</span>
+              <span className="font-mono text-emerald-400 font-bold px-1">{totalTables}</span>
               <button
                 onClick={() => handleUpdateTotalTables(totalTables + 1)}
-                className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center font-bold transition-colors cursor-pointer"
+                className="w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-200 transition-colors"
                 title="Increase Restaurant Total Tables"
               >
                 <Plus className="w-3 h-3" />
               </button>
             </div>
           )}
+
+          {/* Export CSV Button (Goal #7 Part B) */}
+          <button
+            onClick={handleExportCSV}
+            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold rounded-xl transition-all flex items-center gap-2 cursor-pointer"
+            title="Download Daily Orders CSV Report"
+          >
+            <Download className="w-4 h-4 text-emerald-400" />
+            <span>Export CSV</span>
+          </button>
 
           <button
             onClick={handleOpenAddModal}

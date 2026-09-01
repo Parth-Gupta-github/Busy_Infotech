@@ -700,6 +700,83 @@ async function getOrderAuditLogs(orderId) {
   return result.rows;
 }
 
+// Export orders data as CSV text string (Goal #7 Part B)
+async function exportOrdersCSV(options = {}) {
+  const { search = '', status = '', waiterId = '', date = '' } = options;
+  const whereConditions = ['o.archived = false'];
+  const queryParams = [];
+  let paramIndex = 1;
+
+  if (search && search.trim()) {
+    whereConditions.push(`o.table_number ILIKE $${paramIndex}`);
+    queryParams.push(`%${search.trim()}%`);
+    paramIndex++;
+  }
+
+  if (status && status.trim() && status.toUpperCase() !== 'ALL') {
+    whereConditions.push(`o.status = $${paramIndex}`);
+    queryParams.push(status.trim().toUpperCase());
+    paramIndex++;
+  }
+
+  if (waiterId && waiterId.trim()) {
+    whereConditions.push(
+      `(o.primary_waiter_id = $${paramIndex} OR EXISTS (
+         SELECT 1 FROM order_collaborators oc 
+         WHERE oc.order_id = o.id AND oc.waiter_id = $${paramIndex}
+       ))`
+    );
+    queryParams.push(waiterId.trim());
+    paramIndex++;
+  }
+
+  if (date && date.trim()) {
+    if (date.trim().toLowerCase() === 'today') {
+      whereConditions.push(`o.created_at >= CURRENT_DATE`);
+    } else if (date.trim().toLowerCase() !== 'all') {
+      whereConditions.push(`DATE_TRUNC('day', o.created_at) = $${paramIndex}::date`);
+      queryParams.push(date.trim());
+      paramIndex++;
+    }
+  }
+
+  const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+
+  const query = `
+    SELECT 
+      o.id as order_id,
+      o.table_number,
+      o.status,
+      u.name as primary_waiter_name,
+      u.email as primary_waiter_email,
+      COUNT(ol.id) as items_count,
+      o.created_at,
+      COALESCE(SUM(CASE WHEN ol.voided = false THEN ol.quantity * ol.price_at_add ELSE 0 END), 0) as total_amount
+    FROM orders o
+    JOIN users u ON o.primary_waiter_id = u.id
+    LEFT JOIN order_lines ol ON ol.order_id = o.id
+    ${whereClause}
+    GROUP BY o.id, o.table_number, o.status, u.name, u.email, o.created_at
+    ORDER BY o.created_at DESC
+  `;
+
+  const result = await db.query(query, queryParams);
+
+  const headers = ['Order ID', 'Table Number', 'Status', 'Primary Waiter', 'Items Count', 'Created At', 'Total Amount (INR)'];
+  const rows = result.rows.map(r => [
+    `"${r.order_id}"`,
+    `"${r.table_number}"`,
+    `"${r.status}"`,
+    `"${r.primary_waiter_name}"`,
+    r.items_count,
+    `"${new Date(r.created_at).toISOString()}"`,
+    parseFloat(r.total_amount).toFixed(2)
+  ]);
+
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  return csvContent;
+}
+
 module.exports = {
   createOrder,
   addOrderLine,
@@ -711,5 +788,6 @@ module.exports = {
   getOrders,
   setOrderArchiveStatus,
   updateOrderStatus,
-  getOrderAuditLogs
+  getOrderAuditLogs,
+  exportOrdersCSV
 };

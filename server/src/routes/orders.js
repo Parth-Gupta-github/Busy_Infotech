@@ -40,6 +40,21 @@ router.post(
   }
 );
 
+// Export orders data as downloadable CSV file (Goal #7 Part B)
+router.get('/export/csv', authenticateToken, async (req, res, next) => {
+  try {
+    const { search, status, waiterId, date } = req.query;
+    const csvContent = await orderService.exportOrdersCSV({ search, status, waiterId, date });
+
+    const todayStr = date || new Date().toISOString().split('T')[0];
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="daily-orders-${todayStr}.csv"`);
+    res.status(200).send(csvContent);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Add a new dish line to an existing active order
 router.post(
   '/:id/lines',

@@ -162,3 +162,16 @@ Complete alert service, routes, 30s navbar polling, pulsing red alert badge coun
 
 #### What you corrected
 - **Re-Alert Suppression Logic:** Ensured `getSlowOrders()` checks `alert_acknowledgments` table to suppress alerts for 10 minutes, after which orders re-alert if still not marked `READY`.
+
+---
+
+### Daily CSV Export & Final Submission Polish (Phase 10)
+
+#### Prompt
+"Build Phase 10 Daily CSV Export & Final Polish (Goal #7 Part B): exportOrdersCSV function in orderService.js, GET /api/orders/export/csv endpoint in routes/orders.js with Content-Disposition headers, and Export CSV download button in OrdersPage.jsx."
+
+#### What you got
+Complete CSV streaming export endpoint, dataset formatter, and frontend download button.
+
+#### What you corrected
+- **Route Precedence:** Placed `GET /export/csv` route before parameterized `/:id` routes in `routes/orders.js` so Express matches `/export/csv` correctly.
