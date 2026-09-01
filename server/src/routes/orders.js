@@ -179,6 +179,7 @@ router.get(
         search: req.query.search,
         status: req.query.status,
         waiterId: req.query.waiterId,
+        date: req.query.date,
         includeArchived,
         page: req.query.page || 1,
         limit: req.query.limit || 10,

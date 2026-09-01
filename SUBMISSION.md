@@ -4,7 +4,10 @@ Fill this in and commit it. This is the first file we open.
 
 ## Links
 - **GitHub repository:** https://github.com/Parth-Gupta-github/Busy_Infotech
-- **Live application:** Local development (or deployed URL when live)
+- **Live application:** https://restaurant-orders-seven.vercel.app
+- **Backend API:** https://restaurant-orders-api-p5zb.onrender.com
+
+> **Note on Cold Starts:** Hosted on Render free tier. If the backend service is idle, the initial request may take ~50 seconds to spin up.
 
 ## Notes for the reviewer
 All role-based permissions, order lifecycle transition rules, search/pagination, bulk item error reporting, collaborators management, dashboard aggregations with 14-day trend analysis, slow-order alerts with 10-minute acknowledgment suppression, daily CSV order exports, and append-only audit logs are strictly enforced on the server using raw SQL queries with parameterization against PostgreSQL.
@@ -24,7 +27,7 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 | **Frontend** | React (Vite) + Tailwind CSS v3 + Recharts | Fast dev setup, responsive UI components, interactive analytics data charts, real-time alert polling |
 | **Backend** | Node.js + Express.js | Lightweight REST API server with middleware-based role enforcement |
 | **Database** | PostgreSQL (Supabase/Neon) via `pg` pool | Relational schema with raw SQL queries for explicit JOINs, transactions, and precision aggregations |
-| **Hosting** | Local / Neon PostgreSQL Cloud DB | Reliable PostgreSQL cloud instance |
+| **Hosting** | Vercel (Frontend) + Render (Backend API) + Supabase/Neon PostgreSQL DB | Full stack cloud deployment with HTTPS endpoints |
 
 ## Goal checklist
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../services/api';
 import {
@@ -29,7 +30,10 @@ import {
   History,
   Grid,
   Filter,
-  Download
+  Download,
+  Calendar,
+  ArrowUpDown,
+  SlidersHorizontal
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -63,6 +67,9 @@ export default function OrdersPage() {
   // Search & Filter State
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('DESC');
   const [showMyOrdersOnly, setShowMyOrdersOnly] = useState(() => !isManager);
   const [page, setPage] = useState(1);
 
@@ -115,6 +122,9 @@ export default function OrdersPage() {
       if (searchQuery.trim()) endpoint += `&search=${encodeURIComponent(searchQuery.trim())}`;
       if (statusFilter !== 'ALL') endpoint += `&status=${encodeURIComponent(statusFilter)}`;
       if (showMyOrdersOnly && user?.id) endpoint += `&waiterId=${encodeURIComponent(user.id)}`;
+      if (dateFilter) endpoint += `&date=${encodeURIComponent(dateFilter)}`;
+      if (sortBy) endpoint += `&sort=${encodeURIComponent(sortBy)}`;
+      if (sortOrder) endpoint += `&order=${encodeURIComponent(sortOrder)}`;
 
       const data = await apiFetch(endpoint);
       setOrders(data.orders || []);
@@ -158,7 +168,7 @@ export default function OrdersPage() {
     fetchOrders();
     fetchMenuItems();
     fetchWaiters();
-  }, [page, statusFilter, showMyOrdersOnly, user?.id]);
+  }, [page, statusFilter, showMyOrdersOnly, dateFilter, sortBy, sortOrder, user?.id]);
 
   useEffect(() => {
     setShowMyOrdersOnly(!isManager);
@@ -563,30 +573,90 @@ export default function OrdersPage() {
       )}
 
       {/* Filter and Search Toolbar */}
-      <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4">
-        {/* Search */}
-        <div className="relative w-full md:w-72">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search by table number..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-          />
+      <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-2xl border border-slate-800 space-y-3 shadow-lg">
+        {/* Row 1: Search + Date + Sort */}
+        <div className="flex flex-col md:flex-row items-center gap-3">
+          {/* Search Input with Emerald Badge Icon */}
+          <div className="relative w-full md:flex-1 flex items-center">
+            <div className="absolute left-3.5 flex items-center pointer-events-none text-emerald-500 z-10">
+              <Search className="w-4 h-4" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search orders by table number (e.g. Table 1)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-emerald-500 font-medium transition-all shadow-inner"
+            />
+          </div>
+
+          {/* Date Picker with Calendar Icon */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="relative flex items-center">
+              <div className="absolute left-3 flex items-center pointer-events-none text-emerald-500 z-10">
+                <Calendar className="w-4 h-4" />
+              </div>
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => {
+                  setDateFilter(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500 cursor-pointer font-medium shadow-inner"
+              />
+            </div>
+            {dateFilter && (
+              <button
+                onClick={() => { setDateFilter(''); setPage(1); }}
+                className="px-2.5 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-xl text-xs font-semibold cursor-pointer hover:bg-red-500/20 flex items-center gap-1 transition-all"
+                title="Clear date filter"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Clear</span>
+              </button>
+            )}
+          </div>
+
+          {/* Sort Dropdown with Purple Icon */}
+          <div className="relative shrink-0 flex items-center">
+            <div className="absolute left-3 flex items-center pointer-events-none text-purple-400 z-10">
+              <ArrowUpDown className="w-4 h-4" />
+            </div>
+            <select
+              value={`${sortBy}-${sortOrder}`}
+              onChange={(e) => {
+                const [s, o] = e.target.value.split('-');
+                setSortBy(s);
+                setSortOrder(o);
+                setPage(1);
+              }}
+              className="bg-slate-950/80 border border-slate-800 rounded-xl pl-10 pr-8 py-2 text-xs text-slate-100 focus:outline-none focus:border-purple-500 cursor-pointer font-medium appearance-none shadow-inner"
+            >
+              <option value="created_at-DESC">Sort: Newest First</option>
+              <option value="created_at-ASC">Sort: Oldest First</option>
+              <option value="table_number-ASC">Sort: Table Number ↑</option>
+              <option value="table_number-DESC">Sort: Table Number ↓</option>
+              <option value="status-ASC">Sort: Status (A–Z)</option>
+              <option value="status-DESC">Sort: Status (Z–A)</option>
+            </select>
+            <div className="absolute right-3 flex items-center pointer-events-none text-slate-400">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+            </div>
+          </div>
         </div>
 
-        {/* Filters & Consolidated "My Orders" Toggle (Goal #5) */}
-        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+        {/* Row 2: My Orders Toggle + Status Filter Pills with Distinct Icons */}
+        <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-slate-800/60">
           <button
             onClick={() => {
               setShowMyOrdersOnly(!showMyOrdersOnly);
               setPage(1);
             }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
               showMyOrdersOnly
-                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                : 'bg-slate-950 text-slate-300 border border-slate-800 hover:text-white'
+                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20 border border-emerald-500'
+                : 'bg-slate-950/80 text-slate-300 border border-slate-800 hover:text-white'
             }`}
             title="Toggle orders where you are Primary Waiter or Collaborator"
           >
@@ -596,20 +666,29 @@ export default function OrdersPage() {
 
           <div className="h-4 w-px bg-slate-800 shrink-0"></div>
 
-          {['ALL', 'PLACED', 'ACCEPTED', 'PREPARING', 'READY', 'SERVED', 'CANCELLED'].map((st) => (
+          {[
+            { id: 'ALL', label: 'All Statuses', icon: <Grid className="w-3.5 h-3.5 text-slate-400" /> },
+            { id: 'PLACED', label: 'Placed', icon: <Clock className="w-3.5 h-3.5 text-amber-400" /> },
+            { id: 'ACCEPTED', label: 'Accepted', icon: <Play className="w-3.5 h-3.5 text-blue-400" /> },
+            { id: 'PREPARING', label: 'Preparing', icon: <Flame className="w-3.5 h-3.5 text-orange-400" /> },
+            { id: 'READY', label: 'Ready', icon: <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> },
+            { id: 'SERVED', label: 'Served', icon: <CheckCheck className="w-3.5 h-3.5 text-purple-400" /> },
+            { id: 'CANCELLED', label: 'Cancelled', icon: <Ban className="w-3.5 h-3.5 text-red-400" /> }
+          ].map((st) => (
             <button
-              key={st}
+              key={st.id}
               onClick={() => {
-                setStatusFilter(st);
+                setStatusFilter(st.id);
                 setPage(1);
               }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all shrink-0 cursor-pointer ${
-                statusFilter === st
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                  : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all shrink-0 cursor-pointer flex items-center gap-1.5 ${
+                statusFilter === st.id
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-300 hover:text-white bg-slate-950/80 border border-slate-800'
               }`}
             >
-              {st === 'ALL' ? 'ALL' : st.charAt(0) + st.slice(1).toLowerCase()}
+              {st.icon}
+              <span>{st.label}</span>
             </button>
           ))}
         </div>
@@ -859,7 +938,7 @@ export default function OrdersPage() {
       )}
 
       {/* Manage Collaborators Modal (Goal #5) */}
-      {managingCollabsOrder && (
+      {managingCollabsOrder && createPortal(
         <div className="fixed inset-0 z-[110] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -958,11 +1037,12 @@ export default function OrdersPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Void Order Line Modal with Mandatory Reason & Partial Quantity Support (Goal #3 Part B) */}
-      {voidingLineData && (
+      {voidingLineData && createPortal(
         <div className="fixed inset-0 z-[110] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -1034,11 +1114,12 @@ export default function OrdersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Add Dish Line to Existing Active Order Modal */}
-      {addingLineToOrder && (
+      {addingLineToOrder && createPortal(
         <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -1114,11 +1195,12 @@ export default function OrdersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Create Order Modal with Dropdown Table Selector */}
-      {showAddModal && (
+      {showAddModal && createPortal(
         <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
@@ -1293,11 +1375,12 @@ export default function OrdersPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* View Order Details Modal */}
-      {selectedOrderDetails && (
+      {selectedOrderDetails && createPortal(
         <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
@@ -1418,11 +1501,12 @@ export default function OrdersPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* View Immutable Audit History Log Timeline Modal */}
-      {auditLogsOrder && (
+      {auditLogsOrder && createPortal(
         <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
@@ -1495,7 +1579,8 @@ export default function OrdersPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

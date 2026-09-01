@@ -490,6 +490,7 @@ async function getOrders({
   search = '',
   status = '',
   waiterId = '',
+  date = '',
   includeArchived = false,
   page = 1,
   limit = 10,
@@ -526,6 +527,16 @@ async function getOrders({
     ))`);
     queryParams.push(waiterId.trim());
     paramIndex++;
+  }
+
+  if (date && date.trim() !== '') {
+    if (date.trim() === 'today') {
+      whereConditions.push(`o.created_at >= CURRENT_DATE`);
+    } else {
+      whereConditions.push(`DATE(o.created_at) = $${paramIndex}`);
+      queryParams.push(date.trim());
+      paramIndex++;
+    }
   }
 
   const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
