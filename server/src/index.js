@@ -19,7 +19,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/menu', require('./routes/menu'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/dashboard', require('./routes/dashboard'));
-// app.use('/api/alerts', require('./routes/alerts'));
+app.use('/api/alerts', require('./routes/alerts'));
 
 // ─── Error Handling ──────────────────────────────────────────────
 app.use((err, req, res, next) => {

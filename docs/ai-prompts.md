@@ -149,3 +149,16 @@ Complete dashboard service, routes, and `DashboardPage.jsx` component featuring 
 #### What you corrected
 - **Empty Order Safeguard:** Enhanced `orderService.js` and `OrdersPage.jsx` to strictly block placing or accepting empty orders (0 lines).
 - **Waiter Performance Revenue Breakdown:** Separated waiter performance into Served Revenue (earned till now) and Pending Revenue (active ongoing orders).
+
+---
+
+### Slow-Order Alerts System (Phase 9)
+
+#### Prompt
+"Build Phase 9 Slow-Order Alerts System (Goal #10): raw SQL alert service (alertService.js) for detecting orders open > 15 mins without reaching Ready, alert acknowledgment table insertion suppressing re-alerts for 10 mins, Express router (routes/alerts.js), 30s polling, navbar red pulsing Bell badge, and Slow-Order Drawer Modal in App.jsx."
+
+#### What you got
+Complete alert service, routes, 30s navbar polling, pulsing red alert badge counter, and Slow-Order Drawer Modal with 10-minute acknowledgment suppression.
+
+#### What you corrected
+- **Re-Alert Suppression Logic:** Ensured `getSlowOrders()` checks `alert_acknowledgments` table to suppress alerts for 10 minutes, after which orders re-alert if still not marked `READY`.

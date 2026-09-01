@@ -7,7 +7,7 @@ Fill this in and commit it. This is the first file we open.
 - **Live application:** Local development (or deployed URL when live)
 
 ## Notes for the reviewer
-All role-based permissions, order lifecycle transition rules, search/pagination, bulk item error reporting, collaborators management, dashboard aggregations with 14-day trend analysis, and audit logs are strictly enforced on the server using raw SQL queries with parameterization against PostgreSQL.
+All role-based permissions, order lifecycle transition rules, search/pagination, bulk item error reporting, collaborators management, dashboard aggregations with 14-day trend analysis, slow-order alerts with 10-minute acknowledgment suppression, and audit logs are strictly enforced on the server using raw SQL queries with parameterization against PostgreSQL.
 
 ## Demo credentials
 
@@ -21,7 +21,7 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 
 | Layer | What you used | Why |
 |-------|---------------|-----|
-| **Frontend** | React (Vite) + Tailwind CSS v3 + Recharts | Fast dev setup, responsive UI components, interactive analytics data charts |
+| **Frontend** | React (Vite) + Tailwind CSS v3 + Recharts | Fast dev setup, responsive UI components, interactive analytics data charts, real-time alert polling |
 | **Backend** | Node.js + Express.js | Lightweight REST API server with middleware-based role enforcement |
 | **Database** | PostgreSQL (Supabase/Neon) via `pg` pool | Relational schema with raw SQL queries for explicit JOINs, transactions, and precision aggregations |
 | **Hosting** | Local / Neon PostgreSQL Cloud DB | Reliable PostgreSQL cloud instance |
@@ -39,7 +39,7 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 | 7 | **Acting on many items & CSV export** | Done | Manager bulk updates with per-item pass/fail reporting (Goal 7 complete; CSV export in Phase 10) |
 | 8 | **A dashboard** | Done | Headline numbers (Open, Placed today, Served today, Revenue today), status distribution, waiter performance breakdown (Served vs Pending revenue), 14-day trend line chart with Recharts. |
 | 9 | **History you cannot rewrite** | Done | Append-only audit trail logging all status updates, line additions, line voids with mandatory reason, collaborator changes, and notes (uneditable). |
-| 10 | **Slow-order alerts** | Pending | Time-threshold alerts, navbar badge count, acknowledge & re-alert logic |
+| 10 | **Slow-order alerts** | Done | 15-minute slow-order threshold detection query, 30s navbar badge polling, 10-minute acknowledgment suppression logic. |
 
 ---
 
