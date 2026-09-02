@@ -9,14 +9,14 @@ A full-stack web application that replaces paper-ticket restaurant workflows wit
 | Frontend | React + Vite | UI framework with fast dev server |
 | Styling | Tailwind CSS v3 | Utility-first CSS with dark mode |
 | Backend | Node.js + Express | REST API server |
-| Database | Raw PostgreSQL (Supabase) | Cloud-hosted relational database using raw SQL queries |
+| Database | Raw PostgreSQL (Neon) | Cloud-hosted relational database using raw SQL queries |
 | DB Driver | `pg` (node-postgres) | Native PostgreSQL client pool for Node.js |
 | Auth | bcryptjs + JWT | Password hashing + token-based auth |
 
 ## Architecture
 
 ```
-React (Vite)  →  Express API  →  pg Pool (Raw SQL)  →  Supabase PostgreSQL
+React (Vite)  →  Express API  →  pg Pool (Raw SQL)  →  Neon PostgreSQL
 :5173              :3000                                 (cloud)
 ```
 
@@ -39,14 +39,14 @@ The frontend makes HTTP requests to the Express API, which enforces business rul
 
 ### Prerequisites
 - Node.js 18+
-- A Supabase PostgreSQL account (free tier works)
+- A Neon PostgreSQL account (free tier works)
 
 ### Server
 ```bash
 cd server
 npm install
 cp .env.example .env
-# Fill in your Supabase DATABASE_URL and JWT secrets in .env
+# Fill in your Neon DATABASE_URL and JWT secrets in .env
 npm run db:init       # Applies server/db/schema.sql to PostgreSQL
 npm run seed          # Seeds demo data
 npm run dev           # Starts on http://localhost:3000

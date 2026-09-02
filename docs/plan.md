@@ -2,13 +2,13 @@
 
 ## How did you break the work into sessions?
 
-I broke the 12-hour budget into **5 focused sessions** spread across days:
+I broke the work into **5 focused sessions** spread across days, totaling approximately 12 hours:
 
-- **Session 1 (Phase 1):** Scaffolding, architecture selection, raw PostgreSQL schema creation, client setup, and doc templates. (~2 hours)
-- **Session 2 (Phases 2 & 3):** JWT Authentication, role middleware (`MANAGER`/`WAITER`), Menu CRUD, and bulk price/availability update with per-item pass/fail reporting. (~2.5 hours)
-- **Session 3 (Phases 4 & 5):** Core Order creation, server-side filtering/search/pagination, and Order Lifecycle state transition rules with append-only audit logging. (~2.5 hours)
-- **Session 4 (Phases 6, 7 & 8):** Order lines with price snapshots (`price_at_add`), line voiding with required reason, Collaborators management, and Dashboard live stats / 14-day trend charts. (~2.5 hours)
-- **Session 5 (Phases 9 & 10):** Slow-order alert polling, acknowledge & re-alert logic, daily CSV export stream, polish, and doc updates. (~2 hours)
+- **Session 1 — Saturday (~1.5 hrs):** Project planning, architecture decisions (raw SQL vs ORM, Tailwind vs vanilla CSS), evaluating hosting options (Vercel + Render + Neon), mapping out the 10-phase execution order, and setting up doc templates.
+- **Session 2 — Sunday (~4.5 hrs):** Core implementation — database schema creation with 7 tables, JWT authentication, role middleware (`MANAGER`/`WAITER`), Menu CRUD with bulk price/availability updates (per-item pass/fail reporting), Order creation, lifecycle state machine (Placed → Accepted → Preparing → Ready → Served), and append-only audit logging.
+- **Session 3 — Monday (~2 hrs):** Order lines with price snapshots (`price_at_add`), line voiding with mandatory reasons, Collaborators management with `UNIQUE(order_id, waiter_id)` DB constraint, and the consolidated "My Orders" waiter view.
+- **Session 4 — Tuesday (~2.5 hrs):** Dashboard analytics with headline KPI cards, status distribution breakdown, waiter performance leaderboard, 14-day trend line chart (Recharts), slow-order alert polling with 10-minute acknowledgment suppression, and daily CSV export endpoint.
+- **Session 5 — Wednesday (~1.5 hrs+):** UI polish (date search filters, sorting controls, portal-based modal overlays), deployment configuration (Vercel + Render), application branding (favicon, title), documentation updates, and final testing.
 
 ---
 
@@ -29,16 +29,13 @@ I built in strict dependency order:
 
 ## What did you estimate versus what it actually took?
 
-| Phase / Feature | Estimated Time | Actual Time | Difference & Notes |
+| Session / Feature Area | Estimated Time | Actual Time | Difference & Notes |
 |────────────────-|────────────────|─────────────|───────────────────|
-| Phase 1: Scaffolding & Setup | 1.0 hr | 1.2 hrs | Took slightly longer setting up Tailwind v3 and raw PostgreSQL schema DDL |
-| Phase 2: Auth & Role Middleware | 1.5 hrs | 1.5 hrs | On target; simple JWT payload with user role |
-| Phase 3: Menu Management & Bulk Actions | 1.5 hrs | 1.5 hrs | Bulk update per-item pass/fail reporting required individual row handling |
-| Phase 4: Orders & Server Filtering | 2.0 hrs | 2.0 hrs | Server-side text search over table numbers and pagination query tuning |
-| Phase 5: Lifecycle Rules & Audit Log | 1.5 hrs | 1.5 hrs | Implemented transition validation logic and append-only audit logs |
-| Phase 6 & 7: Lines & Collaborators | 2.0 hrs | 1.8 hrs | Built price snapshot `price_at_add` and unique collaborator constraints |
-| Phase 8 & 9: Dashboard & Alerts | 2.0 hrs | 1.8 hrs | Dashboard aggregation SQL queries and slow-order polling endpoints |
-| Phase 10: Polish & CSV Export | 1.5 hrs | 1.5 hrs | CSV stream formatting and documentation completeness |
+| Session 1: Planning & Architecture | 1.0 hr | 1.5 hrs | Took longer evaluating raw SQL vs Prisma ORM and finalizing the 7-table schema design |
+| Session 2: Auth, Menu, Orders & Lifecycle | 4.0 hrs | 4.5 hrs | Bulk update per-item pass/fail reporting and lifecycle state machine validation took extra care |
+| Session 3: Lines, Voiding & Collaborators | 2.0 hrs | 2.0 hrs | On target; price snapshot `price_at_add` and unique collaborator constraints |
+| Session 4: Dashboard, Alerts & CSV Export | 2.5 hrs | 2.5 hrs | Dashboard aggregation SQL queries, Recharts integration, and alert suppression logic |
+| Session 5: Polish, Deployment & Docs | 1.5 hrs | 1.5 hrs+ | Date filters, sorting, portal overlays, Vercel/Render deployment, and documentation |
 
 ---
 

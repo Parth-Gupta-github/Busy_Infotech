@@ -26,8 +26,8 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 |-------|---------------|-----|
 | **Frontend** | React (Vite) + Tailwind CSS v3 + Recharts | Fast dev setup, responsive UI components, interactive analytics data charts, real-time alert polling |
 | **Backend** | Node.js + Express.js | Lightweight REST API server with middleware-based role enforcement |
-| **Database** | PostgreSQL (Supabase/Neon) via `pg` pool | Relational schema with raw SQL queries for explicit JOINs, transactions, and precision aggregations |
-| **Hosting** | Vercel (Frontend) + Render (Backend API) + Supabase/Neon PostgreSQL DB | Full stack cloud deployment with HTTPS endpoints |
+| **Database** | PostgreSQL (Neon) via `pg` pool | Relational schema with raw SQL queries for explicit JOINs, transactions, and precision aggregations |
+| **Hosting** | Vercel (Frontend) + Render (Backend API) + Neon PostgreSQL DB | Full stack cloud deployment with HTTPS endpoints |
 
 ## Goal checklist
 
@@ -49,10 +49,18 @@ All role-based permissions, order lifecycle transition rules, search/pagination,
 ### Reflection Questions
 
 - **How much time did you actually spend?**  
-  Approximately 6 hours of focused pair programming across 10 structured execution phases.
+  Approximately 12 hours spread across 5 days:
+  - **Saturday (~1.5 hrs):** Project planning, architecture decisions, evaluating tech stack options (raw SQL vs ORM, Tailwind vs vanilla CSS), and mapping out the 10-phase execution order.
+  - **Sunday (~4.5 hrs):** Core implementation — database schema, JWT authentication, role middleware, menu CRUD with bulk actions, order creation, lifecycle state machine, and audit logging.
+  - **Monday (~2 hrs):** Order lines with price snapshots, line voiding, collaborators management, and the consolidated "My Orders" waiter view.
+  - **Tuesday (~2.5 hrs):** Dashboard analytics with KPI cards, 14-day trend charts (Recharts), slow-order alert polling with acknowledgment suppression, and daily CSV export.
+  - **Wednesday (~1.5 hrs):** UI polish, date search filters, sorting controls, deployment fixes, documentation updates, and final testing.
 
 - **What would you do next, with another 12 hours?**  
-  Add a real-time Kitchen Display Screen (KDS) using WebSockets and automated integration test coverage for all lifecycle edge cases.
+  1. **Kitchen Display Screen (KDS):** A dedicated touch-friendly view for kitchen staff showing only orders in `ACCEPTED`/`PREPARING` status with large "Mark Ready" bump buttons — replacing the paper ticket corkboard entirely.
+  2. **WebSocket Real-Time Updates:** Replace the 30-second polling mechanism with Socket.io for instant push notifications on order status changes and new alert triggers.
+  3. **Automated Test Suite:** Add Jest + Supertest integration tests covering all 5 lifecycle transitions, role permission blocks, bulk update edge cases, and collaborator authorization rules.
+  4. **Visual Table Floor Plan:** A graphical restaurant layout showing color-coded table statuses (Available, Occupied, Ready for Pickup) so waiters and managers get an instant visual snapshot.
 
 - **What are you least happy with in this codebase, and why?**  
-  Polling every 30 seconds for slow-order alerts instead of WebSockets — polling was chosen for simplicity within the time budget, but WebSockets would provide instant push notifications.
+  The 30-second HTTP polling for slow-order alerts. While it works reliably for a 15-minute alert threshold and was a pragmatic choice within the time budget, it introduces unnecessary network overhead on every poll cycle. WebSockets would deliver instant push notifications without repeated round-trips, and would also enable real-time order status updates across all connected clients — making the system feel truly live instead of slightly delayed.

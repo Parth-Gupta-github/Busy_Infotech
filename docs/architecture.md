@@ -5,16 +5,16 @@
 The system consists of three main moving pieces:
 1. **Frontend (Browser):** A React Single-Page Application built with Vite and Tailwind CSS v3. It manages user state (logged-in waiter/manager, token storage) and presents interactive UI views (Dashboard, Menu, Orders, Order Details, Alerts).
 2. **Backend Server (Node.js/Express):** A RESTful API running on Node.js and Express.js. It handles authentication, validates request inputs, enforces role-based permissions (Manager vs Waiter), manages order lifecycle transitions, and creates append-only audit entries.
-3. **Database (Supabase PostgreSQL):** A relational PostgreSQL database that persists all domain data across 7 tables (`users`, `menu_items`, `orders`, `order_lines`, `order_collaborators`, `audit_logs`, `alert_acknowledgments`).
+3. **Database (Neon PostgreSQL):** A relational PostgreSQL database that persists all domain data across 7 tables (`users`, `menu_items`, `orders`, `order_lines`, `order_collaborators`, `audit_logs`, `alert_acknowledgments`).
 
 **Communication:**  
 The frontend talks to the Express server using standard `fetch` HTTP requests sending JSON payloads. Authenticated requests pass a JWT in the `Authorization: Bearer <token>` header. The Express server talks to PostgreSQL using native TCP sockets managed by the `pg` pool client, executing parameterized SQL queries (`$1`, `$2`).
 
 ## Where does each piece run?
 
-- **Frontend:** Runs locally in the browser (development dev server at `http://localhost:5173`).
-- **Backend API:** Runs as a Node.js process locally (`http://localhost:3000`).
-- **Database:** Runs in the cloud on Supabase PostgreSQL (or a local PostgreSQL instance).
+- **Frontend:** Deployed on **Vercel** as a React SPA (`https://restaurant-orders-seven.vercel.app`).
+- **Backend API:** Deployed on **Render** as a Node.js/Express service (`https://restaurant-orders-api-p5zb.onrender.com`).
+- **Database:** Runs in the cloud on **Neon PostgreSQL** using raw SQL connection pooling (`pg`).
 
 ## What is the request path for one representative user action, end to end?
 
