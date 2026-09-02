@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../services/api';
 import {
   LayoutDashboard,
@@ -24,6 +25,7 @@ import {
 } from 'recharts';
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -305,19 +307,39 @@ export default function DashboardPage() {
             <p className="text-xs text-slate-500 italic">No waiter data recorded.</p>
           ) : (
             <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden bg-slate-950/40">
-              {waiterPerformance.map((wp) => (
-                <div key={wp.waiterId} className="p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
-                      <User className="w-4 h-4" />
+              {waiterPerformance.map((wp) => {
+                const isCurrentUser = user && (wp.waiterId === user.id || wp.waiterName === user.name);
+                return (
+                  <div
+                    key={wp.waiterId}
+                    className={`p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs transition-all ${
+                      isCurrentUser
+                        ? 'bg-emerald-500/10 border-l-4 border-l-emerald-500 font-medium'
+                        : ''
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold ${
+                        isCurrentUser
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                          : 'bg-indigo-500/10 border border-indigo-500/20 text-indigo-400'
+                      }`}>
+                        <User className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-200">{wp.waiterName}</p>
+                          {isCurrentUser && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold tracking-wide">
+                              YOU
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-mono">
+                          {wp.orderCount} total orders ({wp.activeOrderCount} active)
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-slate-200">{wp.waiterName}</p>
-                      <p className="text-[11px] text-slate-500 font-mono">
-                        {wp.orderCount} total orders ({wp.activeOrderCount} active)
-                      </p>
-                    </div>
-                  </div>
 
                   <div className="flex items-center gap-3 self-end sm:self-auto font-mono text-xs">
                     {/* Served Revenue Till Now */}
@@ -333,7 +355,8 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-              ))}
+              );
+            })}
             </div>
           )}
         </div>
