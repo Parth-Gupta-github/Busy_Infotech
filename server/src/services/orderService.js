@@ -1,14 +1,5 @@
 const db = require('../db');
-
-// Order state machine transition rules
-const ALLOWED_TRANSITIONS = {
-  PLACED: ['ACCEPTED', 'CANCELLED'],
-  ACCEPTED: ['PREPARING', 'CANCELLED'],
-  PREPARING: ['READY'],
-  READY: ['SERVED'],
-  SERVED: [],
-  CANCELLED: []
-};
+const { canTransition, getAllowedTransitions } = require('../domain/orderState');
 
 // Create a new order
 async function createOrder({ table_number, notes, created_by_id, items = [] }) {
@@ -637,9 +628,8 @@ async function updateOrderStatus(id, newStatus, actorId) {
       return currentOrder;
     }
 
-    const allowedNext = ALLOWED_TRANSITIONS[oldStatus] || [];
-    if (!allowedNext.includes(targetStatus)) {
-      let msg = `Cannot transition order status from ${oldStatus} to ${targetStatus}.`;
+    if (!canTransition(oldStatus, targetStatus)) {
+      let msg = `Cannot transition order status from '${oldStatus}' to '${targetStatus}'. Allowed: [${getAllowedTransitions(oldStatus).join(', ')}]`;
       if (targetStatus === 'CANCELLED') {
         msg = `Cannot cancel order in status "${oldStatus}". Cancellation is ONLY allowed when status is PLACED or ACCEPTED.`;
       }
