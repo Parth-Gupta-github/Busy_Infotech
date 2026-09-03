@@ -1,9 +1,24 @@
 const express = require('express');
 const { body, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
 const authService = require('../services/authService');
 const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Rate limiter for authentication login requests (Max 10 attempts per 15 minutes per IP)
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 10,
+    message: {
+        error: {
+            code: 'TOO_MANY_REQUESTS',
+            message: 'Too many login attempts from this IP address. Please try again after 15 minutes.'
+        }
+    },
+    standardHeaders: true,
+    legacyHeaders: false
+});
 
 // Input validation error handler
 const validate = (req, res, next) => {
@@ -37,6 +52,7 @@ router.post(
 // Authenticate user login
 router.post(
     '/login',
+    loginLimiter,
     [
         body('email').isEmail().withMessage('Please provide a valid email address.').normalizeEmail(),
         body('password').notEmpty().withMessage('Password is required.'),
