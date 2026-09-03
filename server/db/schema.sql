@@ -57,8 +57,9 @@ CREATE TABLE IF NOT EXISTS menu_items (
 -- ─── 3. Orders Table ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS orders (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    table_number INT NOT NULL,
+    table_number VARCHAR(255) NOT NULL,
     status order_status_enum NOT NULL DEFAULT 'PLACED',
+    notes TEXT,
     archived BOOLEAN NOT NULL DEFAULT false,
     primary_waiter_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,

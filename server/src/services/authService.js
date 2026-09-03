@@ -2,7 +2,14 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'restaurant_secret_jwt_key_2026';
+function getJwtSecret() {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+        throw new Error('FATAL: JWT_SECRET environment variable is required. Please set JWT_SECRET in your .env file.');
+    }
+    return secret;
+}
+
 const JWT_EXPIRES_IN = '24h';
 
 // Register a new user
@@ -39,7 +46,7 @@ async function registerUser({ email, password, name, role }) {
     const user = result.rows[0];
     const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: JWT_EXPIRES_IN }
     );
 
@@ -74,7 +81,7 @@ async function loginUser({ email, password }) {
 
     const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role, name: user.name },
-        JWT_SECRET,
+        getJwtSecret(),
         { expiresIn: JWT_EXPIRES_IN }
     );
 

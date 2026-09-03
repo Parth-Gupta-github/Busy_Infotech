@@ -1,6 +1,12 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'restaurant_secret_jwt_key_2026';
+function getJwtSecret() {
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+        throw new Error('FATAL: JWT_SECRET environment variable is required. Please set JWT_SECRET in your .env file.');
+    }
+    return secret;
+}
 
 // JWT verification middleware
 function authenticateToken(req, res, next) {
@@ -11,7 +17,7 @@ function authenticateToken(req, res, next) {
         return res.status(401).json({ error: 'Access token required.' });
     }
 
-    jwt.verify(token, JWT_SECRET, (err, user) => {
+    jwt.verify(token, getJwtSecret(), (err, user) => {
         if (err) {
             return res.status(403).json({ error: 'Invalid or expired token.' });
         }
