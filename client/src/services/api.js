@@ -35,7 +35,12 @@ export async function apiFetch(endpoint, options = {}) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(data.error || 'An unexpected error occurred');
+    const errorMessage = typeof data.error === 'object' ? data.error.message : (data.error || 'An unexpected error occurred');
+    const err = new Error(errorMessage);
+    if (typeof data.error === 'object' && data.error.code) {
+      err.code = data.error.code;
+    }
+    throw err;
   }
 
   return data;

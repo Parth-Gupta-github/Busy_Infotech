@@ -21,13 +21,8 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/alerts', require('./routes/alerts'));
 
-// ─── Error Handling ──────────────────────────────────────────────
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal server error',
-  });
-});
+// ─── Centralized Error Handling Middleware ───────────────────────
+app.use(require('./middleware/errorHandler'));
 
 // ─── Start Server ────────────────────────────────────────────────
 app.listen(PORT, () => {
