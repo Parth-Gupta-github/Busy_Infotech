@@ -97,13 +97,8 @@ async function createOrder({ table_number, notes, created_by_id, items = [] }) {
 }
 
 // Add a new dish line to an existing active order
-async function addOrderLine({ order_id, menu_item_id, quantity = 1, special_instructions, actor_id }) {
-  if (!order_id || !menu_item_id) {
-    const error = new Error('Order ID and Menu Item ID are required.');
-    error.status = 400;
-    throw error;
-  }
-
+// Add single or multiple dish lines to an existing active order
+async function addOrderLine({ order_id, menu_item_id, quantity, special_instructions, items = [], actor_id }) {
   const client = await db.getClient();
 
   try {
@@ -121,52 +116,88 @@ async function addOrderLine({ order_id, menu_item_id, quantity = 1, special_inst
     }
 
     const order = orderRes.rows[0];
-    if (order.archived || ['SERVED', 'CANCELLED'].includes(order.status)) {
+    if (order.archived || order.status === 'CANCELLED') {
       const error = new Error(`Cannot add dishes to order in status "${order.status}".`);
       error.status = 400;
       throw error;
     }
 
-    const menuRes = await client.query(
-      `SELECT id, name, price, available, archived FROM menu_items WHERE id = $1`,
-      [menu_item_id]
-    );
-
-    if (menuRes.rowCount === 0) {
-      const error = new Error('Menu item not found.');
-      error.status = 404;
-      throw error;
+    const linesToAdd = [];
+    if (Array.isArray(items) && items.length > 0) {
+      linesToAdd.push(...items);
+    } else if (menu_item_id) {
+      linesToAdd.push({ menu_item_id, quantity, special_instructions });
     }
 
-    const menuItem = menuRes.rows[0];
-    if (!menuItem.available || menuItem.archived) {
-      const error = new Error(`Dish "${menuItem.name}" is currently out of stock or archived.`);
+    if (linesToAdd.length === 0) {
+      const error = new Error('At least 1 dish item must be specified to add.');
       error.status = 400;
       throw error;
     }
 
-    const priceAtAdd = parseFloat(menuItem.price);
-    const lineQty = parseInt(quantity, 10) || 1;
+    for (const item of linesToAdd) {
+      const targetItemId = item.menu_item_id;
+      const targetQty = parseInt(item.quantity, 10) || 1;
+      const targetNotes = item.special_instructions ? item.special_instructions.trim() : null;
 
-    const lineRes = await client.query(
-      `INSERT INTO order_lines (order_id, menu_item_id, quantity, price_at_add, special_instructions)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
-      [order_id, menuItem.id, lineQty, priceAtAdd, special_instructions ? special_instructions.trim() : null]
-    );
+      const menuRes = await client.query(
+        `SELECT id, name, price, available, archived FROM menu_items WHERE id = $1`,
+        [targetItemId]
+      );
 
-    await client.query(
-      `INSERT INTO audit_logs (order_id, user_id, action, details)
-       VALUES ($1, $2, 'LINE_ADDED', $3)`,
-      [
-        order_id,
-        actor_id,
-        JSON.stringify({
-          message: `Added ${lineQty}x ${menuItem.name} at ₹${priceAtAdd.toFixed(2)} each`,
-          lineId: lineRes.rows[0].id
-        })
-      ]
-    );
+      if (menuRes.rowCount === 0) {
+        const error = new Error('Menu item not found.');
+        error.status = 404;
+        throw error;
+      }
+
+      const menuItem = menuRes.rows[0];
+      if (!menuItem.available || menuItem.archived) {
+        const error = new Error(`Dish "${menuItem.name}" is currently out of stock or archived.`);
+        error.status = 400;
+        throw error;
+      }
+
+      const priceAtAdd = parseFloat(menuItem.price);
+
+      const lineRes = await client.query(
+        `INSERT INTO order_lines (order_id, menu_item_id, quantity, price_at_add, special_instructions)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [order_id, menuItem.id, targetQty, priceAtAdd, targetNotes]
+      );
+
+      await client.query(
+        `INSERT INTO audit_logs (order_id, user_id, action, details)
+         VALUES ($1, $2, 'LINE_ADDED', $3)`,
+        [
+          order_id,
+          actor_id,
+          JSON.stringify({
+            message: `Added ${targetQty}x ${menuItem.name} at ₹${priceAtAdd.toFixed(2)} each`,
+            lineId: lineRes.rows[0].id
+          })
+        ]
+      );
+    }
+
+    // If order was previously READY or SERVED, adding new dishes transitions status back to ACCEPTED so kitchen gets notified
+    if (['READY', 'SERVED'].includes(order.status)) {
+      await client.query(
+        `UPDATE orders SET status = 'ACCEPTED', updated_at = NOW() WHERE id = $1`,
+        [order_id]
+      );
+      await client.query(
+        `INSERT INTO audit_logs (order_id, user_id, action, old_status, new_status, details)
+         VALUES ($1, $2, 'STATUS_CHANGED', $3, 'ACCEPTED', $4)`,
+        [
+          order_id,
+          actor_id,
+          order.status,
+          JSON.stringify({ message: `Status reset to ACCEPTED due to new dish addition (was ${order.status})` })
+        ]
+      );
+    }
 
     await client.query('COMMIT');
     return getOrderById(order_id);
@@ -549,12 +580,27 @@ async function getOrders({
       o.*, 
       u.name as primary_waiter_name, 
       u.email as primary_waiter_email,
-      (SELECT COUNT(*) FROM order_lines ol WHERE ol.order_id = o.id) as item_count,
+      (SELECT COUNT(*) FROM order_lines ol WHERE ol.order_id = o.id AND ol.voided = false) as item_count,
       COALESCE((
         SELECT SUM(ol.quantity * ol.price_at_add) 
         FROM order_lines ol 
         WHERE ol.order_id = o.id AND ol.voided = false
-      ), 0) as total_amount
+      ), 0) as total_amount,
+      COALESCE((
+        SELECT json_agg(json_build_object(
+          'line_id', ol.id,
+          'menu_item_id', ol.menu_item_id,
+          'item_name', mi.name,
+          'quantity', ol.quantity,
+          'price_at_add', ol.price_at_add,
+          'special_instructions', ol.special_instructions,
+          'voided', ol.voided,
+          'created_at', ol.created_at
+        ) ORDER BY ol.created_at ASC)
+        FROM order_lines ol
+        JOIN menu_items mi ON ol.menu_item_id = mi.id
+        WHERE ol.order_id = o.id AND ol.voided = false
+      ), '[]'::json) as items
     FROM orders o
     JOIN users u ON o.primary_waiter_id = u.id
     ${whereClause}
@@ -703,10 +749,14 @@ async function getOrderAuditLogs(orderId) {
 
 // Export orders data as CSV text string (Goal #7 Part B)
 async function exportOrdersCSV(options = {}) {
-  const { search = '', status = '', waiterId = '', date = '' } = options;
-  const whereConditions = ['o.archived = false'];
+  const { search = '', status = '', waiterId = '', date = '', includeArchived = 'true' } = options;
+  const whereConditions = [];
   const queryParams = [];
   let paramIndex = 1;
+
+  if (includeArchived === 'false') {
+    whereConditions.push('o.archived = false');
+  }
 
   if (search && search.trim()) {
     whereConditions.push(`o.table_number ILIKE $${paramIndex}`);
@@ -733,21 +783,22 @@ async function exportOrdersCSV(options = {}) {
 
   if (date && date.trim()) {
     if (date.trim().toLowerCase() === 'today') {
-      whereConditions.push(`o.created_at >= CURRENT_DATE`);
+      whereConditions.push(`(o.created_at AT TIME ZONE 'Asia/Kolkata')::date = (NOW() AT TIME ZONE 'Asia/Kolkata')::date`);
     } else if (date.trim().toLowerCase() !== 'all') {
-      whereConditions.push(`DATE_TRUNC('day', o.created_at) = $${paramIndex}::date`);
+      whereConditions.push(`(o.created_at AT TIME ZONE 'Asia/Kolkata')::date = $${paramIndex}::date`);
       queryParams.push(date.trim());
       paramIndex++;
     }
   }
 
-  const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
+  const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
   const query = `
     SELECT 
       o.id as order_id,
       o.table_number,
       o.status,
+      o.archived,
       u.name as primary_waiter_name,
       u.email as primary_waiter_email,
       COUNT(ol.id) as items_count,
@@ -757,20 +808,21 @@ async function exportOrdersCSV(options = {}) {
     JOIN users u ON o.primary_waiter_id = u.id
     LEFT JOIN order_lines ol ON ol.order_id = o.id
     ${whereClause}
-    GROUP BY o.id, o.table_number, o.status, u.name, u.email, o.created_at
+    GROUP BY o.id, o.table_number, o.status, o.archived, u.name, u.email, o.created_at
     ORDER BY o.created_at DESC
   `;
 
   const result = await db.query(query, queryParams);
 
-  const headers = ['Order ID', 'Table Number', 'Status', 'Primary Waiter', 'Items Count', 'Created At', 'Total Amount (INR)'];
+  const headers = ['Order ID', 'Table Number', 'Status', 'Archived', 'Primary Waiter', 'Items Count', 'Created At (IST)', 'Total Amount (INR)'];
   const rows = result.rows.map(r => [
     `"${r.order_id}"`,
     `"${r.table_number}"`,
     `"${r.status}"`,
+    r.archived ? '"Yes"' : '"No"',
     `"${r.primary_waiter_name}"`,
     r.items_count,
-    `"${new Date(r.created_at).toISOString()}"`,
+    `"${new Date(r.created_at).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}"`,
     parseFloat(r.total_amount).toFixed(2)
   ]);
 

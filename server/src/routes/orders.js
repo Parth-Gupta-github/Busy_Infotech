@@ -49,8 +49,8 @@ router.post(
 // Export orders data as downloadable CSV file (Goal #7 Part B)
 router.get('/export/csv', authenticateToken, async (req, res, next) => {
   try {
-    const { search, status, waiterId, date } = req.query;
-    const csvContent = await orderService.exportOrdersCSV({ search, status, waiterId, date });
+    const { search, status, waiterId, date, includeArchived } = req.query;
+    const csvContent = await orderService.exportOrdersCSV({ search, status, waiterId, date, includeArchived });
 
     const todayStr = date || new Date().toISOString().split('T')[0];
     res.setHeader('Content-Type', 'text/csv');
@@ -61,16 +61,10 @@ router.get('/export/csv', authenticateToken, async (req, res, next) => {
   }
 });
 
-// Add a new dish line to an existing active order
+// Add a new dish line or multiple dish lines to an existing active order
 router.post(
   '/:id/lines',
   authenticateToken,
-  [
-    body('menu_item_id').trim().notEmpty().withMessage('Menu item ID is required.'),
-    body('quantity').optional().isInt({ min: 1 }).toInt(),
-    body('special_instructions').optional().trim(),
-    validate
-  ],
   checkOrderAccess(),
   async (req, res, next) => {
     try {
@@ -79,6 +73,7 @@ router.post(
         menu_item_id: req.body.menu_item_id,
         quantity: req.body.quantity || 1,
         special_instructions: req.body.special_instructions,
+        items: req.body.items || [],
         actor_id: req.user.id
       });
       res.json(updatedOrder);
@@ -248,11 +243,10 @@ router.get('/:id/audit', authenticateToken, checkOrderAccess(), async (req, res,
   }
 });
 
-// Soft-delete (archive) or restore an order (Manager Only)
+// Soft-delete (archive) or restore an order / complete table lifecycle
 router.patch(
   '/:id/archive',
   authenticateToken,
-  requireRole('MANAGER'),
   checkOrderAccess(),
   [
     body('archived').isBoolean().withMessage('Archived field must be a boolean (true/false).'),
