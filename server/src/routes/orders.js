@@ -11,7 +11,12 @@ const router = express.Router();
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ error: errors.array()[0].msg });
+    return res.status(400).json({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: errors.array()[0].msg
+      }
+    });
   }
   next();
 };
@@ -60,13 +65,13 @@ router.get('/export/csv', authenticateToken, async (req, res, next) => {
 router.post(
   '/:id/lines',
   authenticateToken,
-  checkOrderAccess(),
   [
     body('menu_item_id').trim().notEmpty().withMessage('Menu item ID is required.'),
     body('quantity').optional().isInt({ min: 1 }).toInt(),
     body('special_instructions').optional().trim(),
     validate
   ],
+  checkOrderAccess(),
   async (req, res, next) => {
     try {
       const updatedOrder = await orderService.addOrderLine({
@@ -87,12 +92,12 @@ router.post(
 router.patch(
   '/:id/lines/:lineId/void',
   authenticateToken,
-  checkOrderAccess(),
   [
     body('void_reason').trim().notEmpty().withMessage('Void reason is required when voiding an order line.'),
     body('void_quantity').optional().isInt({ min: 1 }).toInt(),
     validate
   ],
+  checkOrderAccess(),
   async (req, res, next) => {
     try {
       const updatedOrder = await orderService.voidOrderLine({
@@ -113,11 +118,11 @@ router.patch(
 router.post(
   '/:id/collaborators',
   authenticateToken,
-  checkOrderAccess({ primaryOnly: true }),
   [
     body('waiter_id').trim().notEmpty().withMessage('Waiter ID is required.'),
     validate
   ],
+  checkOrderAccess({ primaryOnly: true }),
   async (req, res, next) => {
     try {
       const updatedOrder = await orderService.addOrderCollaborator({
