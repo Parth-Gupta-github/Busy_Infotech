@@ -5,11 +5,11 @@ async function seed() {
   console.log('🌱 Seeding database with menu items and INR (₹) prices...');
 
   try {
-    // 1. Hash passwords
+    // 1. Hash default passwords
     const managerPassword = await bcrypt.hash('manager123', 10);
     const waiterPassword = await bcrypt.hash('waiter123', 10);
 
-    // 2. Insert Users (1 Manager, 2 Waiters)
+    // 2. Insert Users (1 Manager, 2 Waiters) idempotently
     console.log('Inserting default users...');
     const userRes = await db.query(`
       INSERT INTO users (email, password, name, role)
@@ -22,12 +22,10 @@ async function seed() {
       RETURNING id, email, role, name;
     `, [managerPassword, waiterPassword, waiterPassword]);
 
-    console.log(`✅ ${userRes.rowCount} users created/updated.`);
+    console.log(`✅ Default user accounts configured.`);
 
-    // 3. Clear existing default items and re-insert menu items
+    // 3. Insert menu items idempotently (ON CONFLICT (name) DO UPDATE)
     console.log('Inserting default menu items...');
-    await db.query('DELETE FROM menu_items');
-
     const menuItems = [
       ['Margherita Pizza', 299.00, true],
       ['Pepperoni Pizza', 399.00, true],
@@ -47,14 +45,16 @@ async function seed() {
       await db.query(`
         INSERT INTO menu_items (name, price, available)
         VALUES ($1, $2, $3)
+        ON CONFLICT (name) DO UPDATE
+        SET price = EXCLUDED.price, available = EXCLUDED.available;
       `, [name, price, available]);
     }
 
     console.log('✅ Default menu items seeded with INR (₹) prices.');
     console.log('✨ Seeding complete!\n');
 
-    console.log('Default credentials:');
-    console.log('  Manager: manager@restaurant.com / manager123');
+    console.log('Default developer credentials:');
+    console.log('  Manager:  manager@restaurant.com / manager123');
     console.log('  Waiter 1: waiter1@restaurant.com / waiter123');
     console.log('  Waiter 2: waiter2@restaurant.com / waiter123');
     process.exit(0);
@@ -62,6 +62,12 @@ async function seed() {
   } catch (err) {
     console.error('❌ Error seeding database:', err);
     process.exit(1);
+  } finally {
+    try {
+      if (db.pool) await db.pool.end();
+    } catch (e) {
+      // Ignore
+    }
   }
 }
 

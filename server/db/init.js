@@ -10,10 +10,16 @@ async function initDatabase() {
 
     await db.query(sql);
     console.log('✅ Database schema initialized successfully!');
+    process.exit(0);
   } catch (err) {
     console.error('❌ Failed to initialize database schema:', err);
+    process.exit(1);
   } finally {
-    await db.pool.end();
+    try {
+      if (db.pool) await db.pool.end();
+    } catch (e) {
+      // Ignore pool closing error on exit
+    }
   }
 }
 

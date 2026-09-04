@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- ─── 2. Menu Items Table ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS menu_items (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
-    name VARCHAR(255) NOT NULL,
+    name VARCHAR(255) UNIQUE NOT NULL,
     price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
     available BOOLEAN NOT NULL DEFAULT true,
     archived BOOLEAN NOT NULL DEFAULT false,
@@ -129,5 +129,10 @@ END $$;
 
 DO $$ BEGIN
     ALTER TABLE order_lines ADD CONSTRAINT chk_order_lines_price_at_add CHECK (price_at_add >= 0);
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE menu_items ADD CONSTRAINT unique_menu_items_name UNIQUE (name);
 EXCEPTION WHEN duplicate_object THEN null;
 END $$;
