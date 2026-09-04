@@ -527,14 +527,13 @@ async function getOrders({
   const queryParams = [];
   let paramIndex = 1;
 
-  if (!includeArchived) {
-    whereConditions.push(`o.archived = false`);
-  }
-
   if (search && search.trim() !== '') {
-    whereConditions.push(`o.table_number ILIKE $${paramIndex}`);
-    queryParams.push(`%${search.trim()}%`);
+    const cleanSearch = search.trim().replace(/^#/, '');
+    whereConditions.push(`(o.table_number ILIKE $${paramIndex} OR o.id::text ILIKE $${paramIndex})`);
+    queryParams.push(`%${cleanSearch}%`);
     paramIndex++;
+  } else if (!includeArchived) {
+    whereConditions.push(`o.archived = false`);
   }
 
   if (status && status.trim() !== '' && status !== 'ALL') {
@@ -759,8 +758,9 @@ async function exportOrdersCSV(options = {}) {
   }
 
   if (search && search.trim()) {
-    whereConditions.push(`o.table_number ILIKE $${paramIndex}`);
-    queryParams.push(`%${search.trim()}%`);
+    const cleanSearch = search.trim().replace(/^#/, '');
+    whereConditions.push(`(o.table_number ILIKE $${paramIndex} OR o.id::text ILIKE $${paramIndex})`);
+    queryParams.push(`%${cleanSearch}%`);
     paramIndex++;
   }
 
