@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { apiFetch } from '../services/api';
 import {
@@ -534,13 +535,13 @@ export default function MenuPage() {
 
       {/* Floating Sticky Bottom Bar for Unsaved Edits (Prices & Availability) */}
       {isManager && modifiedCount > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90%] bg-slate-900/95 backdrop-blur-xl border border-amber-500/40 rounded-2xl p-4 shadow-2xl shadow-amber-500/10 flex items-center justify-between gap-4 animate-bounce-short">
+        <div className="floating-unsaved-bar fixed bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-xl w-[90%] bg-slate-900/95 backdrop-blur-xl border border-amber-500/50 rounded-2xl p-4 shadow-2xl shadow-amber-500/10 flex items-center justify-between gap-4 animate-bounce-short">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-400 flex items-center justify-center shrink-0">
               <AlertTriangle className="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <p className="text-xs font-bold text-slate-100">
+              <p className="text-xs font-bold text-white title-text">
                 Unsaved Menu Modifications
               </p>
               <p className="text-[11px] text-amber-400 font-medium">
@@ -553,7 +554,7 @@ export default function MenuPage() {
             <button
               type="button"
               onClick={handleDiscardAllEdits}
-              className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-xl transition-all cursor-pointer flex items-center gap-1"
+              className="btn-discard px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-xl transition-all cursor-pointer flex items-center gap-1 border border-slate-700"
             >
               <X className="w-3.5 h-3.5" />
               <span>Discard</span>
@@ -572,7 +573,7 @@ export default function MenuPage() {
       )}
 
       {/* Add Item Modal */}
-      {showAddModal && (
+      {showAddModal && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <h2 className="text-lg font-bold text-slate-100">Add New Menu Item</h2>
@@ -634,11 +635,12 @@ export default function MenuPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Edit Item Modal */}
-      {showEditModal && editingItem && (
+      {showEditModal && editingItem && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <h2 className="text-lg font-bold text-slate-100">Edit Menu Item</h2>
@@ -701,11 +703,12 @@ export default function MenuPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Bulk Action Checkbox Modal */}
-      {showBulkModal && (
+      {showBulkModal && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <h2 className="text-lg font-bold text-slate-100">
@@ -763,11 +766,12 @@ export default function MenuPage() {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Bulk Results Report Modal */}
-      {showBulkResultsModal && (
+      {showBulkResultsModal && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-2">
@@ -804,7 +808,8 @@ export default function MenuPage() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

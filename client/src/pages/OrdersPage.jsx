@@ -567,19 +567,21 @@ export default function OrdersPage() {
 
   const tableOptionsList = getTableOptions();
 
-  // Export Daily Orders CSV Handler (Goal #7 Part B)
+  // Export Orders CSV Handler based on current active filters (Goal #7 Part B)
   const handleExportCSV = async () => {
     try {
-      let endpoint = '/orders/export/csv?includeArchived=true';
+      let endpoint = `/orders/export/csv?includeArchived=${showArchived ? 'true' : 'false'}`;
       if (searchQuery.trim()) endpoint += `&search=${encodeURIComponent(searchQuery.trim())}`;
       if (statusFilter !== 'ALL') endpoint += `&status=${encodeURIComponent(statusFilter)}`;
       if (showMyOrdersOnly && user?.id) endpoint += `&waiterId=${encodeURIComponent(user.id)}`;
+      if (dateFilter) endpoint += `&date=${encodeURIComponent(dateFilter)}`;
 
       const blob = await apiFetch(endpoint);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `daily-orders-${new Date().toISOString().split('T')[0]}.csv`;
+      const fileDate = dateFilter || new Date().toISOString().split('T')[0];
+      a.download = `orders-export-${fileDate}.csv`;
       document.body.appendChild(a);
       a.click();
       a.remove();

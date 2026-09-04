@@ -20,12 +20,12 @@ html.light .bg-slate-950 {
   color: #0f172a !important;
 }
 
-/* Modal Backdrops & Overlays */
+/* Modal Backdrops & Full-Screen Overlays */
 html.light .fixed.inset-0,
-html.light .bg-slate-950\/90,
-html.light .bg-slate-950\/80 {
-  background-color: rgba(15, 23, 42, 0.45) !important;
+.fixed.inset-0 {
+  background-color: rgba(15, 23, 42, 0.55) !important;
   backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
 }
 
 /* Cards & Modals Containers */
@@ -39,11 +39,12 @@ html.light .bg-slate-900\/90 {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -4px rgba(0, 0, 0, 0.03) !important;
 }
 
-/* Secondary Panels & Inner Boxes */
-html.light .bg-slate-950\/80,
-html.light .bg-slate-950\/60,
-html.light .bg-slate-950\/50,
-html.light .bg-slate-950\/40 {
+/* Secondary Panels & Inner Boxes (Not Fixed Overlays) */
+html.light :not(.fixed).bg-slate-950\/90,
+html.light :not(.fixed).bg-slate-950\/80,
+html.light :not(.fixed).bg-slate-950\/60,
+html.light :not(.fixed).bg-slate-950\/50,
+html.light :not(.fixed).bg-slate-950\/40 {
   background-color: #f1f5f9 !important;
   color: #0f172a !important;
   border-color: #cbd5e1 !important;
@@ -118,6 +119,30 @@ html.light tr:hover {
 /* Timeline Rings */
 html.light .ring-slate-900 {
   --tw-ring-color: #ffffff !important;
+}
+
+/* Unsaved Modifications Sticky Floating Dock (High-contrast island) */
+html.light .floating-unsaved-bar,
+.floating-unsaved-bar {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: rgba(245, 158, 11, 0.5) !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.35), 0 8px 10px -6px rgba(0, 0, 0, 0.25) !important;
+}
+
+html.light .floating-unsaved-bar .title-text {
+  color: #ffffff !important;
+}
+
+html.light .floating-unsaved-bar .btn-discard {
+  background-color: #1e293b !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+html.light .floating-unsaved-bar .btn-discard:hover {
+  background-color: #334155 !important;
+  color: #ffffff !important;
 }
 
 /* Dedicated Thermal Bill Print Media Styles */

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -235,7 +236,7 @@ function MainLayout({ children }) {
       </main>
 
       {/* 🚨 Slow-Order Alerts Drawer Modal (Goal #10) */}
-      {showAlertModal && (
+      {showAlertModal && createPortal(
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
           <div className="max-w-lg w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
@@ -299,10 +300,7 @@ function MainLayout({ children }) {
                       {ackLoadingId === so.orderId ? (
                         <div className="w-3.5 h-3.5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></div>
                       ) : (
-                        <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Acknowledge</span>
-                        </>
+                        <span>Acknowledge Alert</span>
                       )}
                     </button>
                   </div>
@@ -320,7 +318,8 @@ function MainLayout({ children }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
