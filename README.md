@@ -229,7 +229,8 @@ A production-grade, full-stack restaurant order and kitchen management platform 
 | **Waiter 1** | `waiter1@restaurant.com` | `waiter123` | Order creation, dish additions, line-item voiding with reasons, status progression, collaborator assignments, KDS screen, "My Orders" default filter |
 | **Waiter 2** | `waiter2@restaurant.com` | `waiter123` | Multi-waiter collaboration testing, isolated waiter order queues, status updates |
 
-*Instant Registration:* You can also register a new account instantly on `/register` (direct bcrypt password hashing without email verification delays).
+*Instant Registration:* Create new accounts instantly on `/register` (direct bcrypt password hashing without email delays).  
+*Role Landing Pages:* **Manager** opens the **Dashboard (`/`)** with live revenue metrics; **Waiter** opens **Orders (`/orders`)** to create and manage table orders (follow the **5-Step Walkthrough** below to test from scratch).
 
 ---
 

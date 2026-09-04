@@ -12,7 +12,8 @@
 ## Notes for the Reviewer
 
 ### 🔑 Key Architectural & Testing Context
-- **1-Click Demo Account Login:** On the Login page (`/login`), click the **"Manager Account"** or **"Waiter Account"** buttons to auto-populate credentials instantly without typing.
+- **1-Click Demo Login:** On `/login`, click **"Manager Account"** or **"Waiter Account"** to fill credentials instantly.
+- **Role Landing Pages:** Logging in as **Manager** opens the **Dashboard (`/`)** with live revenue metrics and 14-day trend charts. Logging in as **Waiter** opens the **Orders Page (`/orders`)** directly to create and manage table orders (follow the **5-Step Testing Flow** below to test from scratch).
 - **Kitchen Display System (`/kitchen`) Access:** Currently accessible to both Managers and Waiters so reviewers can simulate the entire table-to-kitchen-to-table lifecycle without logging in and out. In production, this can be locked down to a dedicated `KITCHEN_STAFF` / `CHEF` role.
 - **Instant Onboarding (No Email Verification Bottleneck):** Sign in with the demo accounts below or create a new account via `/register` (direct bcrypt password hashing without Nodemailer/SMTP delays).
 - **Strict Server-Side Enforcement:** All role checks (`MANAGER` vs `WAITER`), lifecycle transitions, cancellation locks, mandatory void reasons, price snapshots (`price_at_add`), and immutable audit trails are enforced in PostgreSQL raw SQL transactions.
