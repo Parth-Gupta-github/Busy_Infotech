@@ -85,7 +85,7 @@ To test the system naturally like a restaurant workflow:
   - **Day 4 (~2.0 hrs):** Order lines with price snapshots (`price_at_add`), line voiding with mandatory reasons, and collaborator management with `UNIQUE` constraints.
   - **Day 5 (~2.0 hrs):** Dashboard analytics with Recharts 14-day trend charts, slow-order alerts with 10-minute suppression, and streaming CSV export.
   - **Day 6 (~2.0 hrs):** Security hardening (JWT fail-fast validation, database price constraints), rate limiting, date search filters, and UI theme refinements.
-  - **Day 7 (~3.0 hrs - Today):** Extended workflows (Kitchen Display System at `/kitchen`, thermal receipts with Order ID headers), filter-aware CSV downloads, light mode contrast fixes, full portal overlays, and comprehensive end-to-end goal testing.
+  - **Day 7 (~3.0 hrs):** Extended workflows (Kitchen Display System at `/kitchen`, thermal receipts with Order ID headers), filter-aware CSV downloads, light mode contrast fixes, full portal overlays, and comprehensive end-to-end goal testing.
 
 - **What would you do next, with another 12 hours?**  
   1. **Automated Integration & E2E Testing:** Build a comprehensive test suite using Jest + Supertest for backend API route testing (covering state machine transitions, concurrent updates, and role blocks) and Playwright for browser-level KDS bump flows.

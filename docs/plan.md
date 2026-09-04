@@ -10,7 +10,7 @@ I broke the work into **7 focused daily sessions** spread across the week, total
 - **Session 4 — Day 4 (~2.0 hrs):** Order lines with price snapshots (`price_at_add`), line voiding with mandatory reasons, Collaborators management with `UNIQUE(order_id, waiter_id)` DB constraint, and the consolidated "My Orders" waiter view.
 - **Session 5 — Day 5 (~2.0 hrs):** Dashboard analytics with headline KPI cards, status distribution breakdown, waiter performance leaderboard, Recharts 14-day trend line chart, slow-order alert polling with 10-minute acknowledgment suppression, and streaming CSV export.
 - **Session 6 — Day 6 (~2.0 hrs):** Security hardening (JWT_SECRET fail-fast check, input validation standardization, database price constraints), date search filters, sorting controls, and UI theme refinements.
-- **Session 7 — Day 7 (~3.0 hrs - Today):** Extended restaurant workflows — Kitchen Display System (KDS at `/kitchen`), printable thermal receipts with Order ID headers, filter-aware CSV exports, light/dark mode contrast fixes, full portal modal overlays, and comprehensive end-to-end goal testing.
+- **Session 7 — Day 7 (~3.0 hrs):** Extended restaurant workflows — Kitchen Display System (KDS at `/kitchen`), printable thermal receipts with Order ID headers, filter-aware CSV exports, light/dark mode contrast fixes, full portal modal overlays, and comprehensive end-to-end goal testing.
 
 ---
 
@@ -33,14 +33,14 @@ I built in strict dependency order:
 ## What did you estimate versus what it actually took?
 
 | Session / Feature Area | Estimated Time | Actual Time | Difference & Notes |
-|────────────────-|────────────────|─────────────|───────────────────|
-| Session 1 (Day 1): Planning & Architecture | 1.0 hr | 1.5 hrs | Took longer evaluating raw SQL vs Prisma ORM and finalizing the 7-table schema design |
-| Session 2 (Day 2): DB Schema, Auth & Roles | 2.0 hrs | 2.5 hrs | Raw SQL DDL, UUID extensions, and JWT role-guard middleware |
-| Session 3 (Day 3): Menu CRUD & Lifecycle State Machine | 2.0 hrs | 2.0 hrs | Bulk update per-item pass/fail reporting and state machine transition validation |
-| Session 4 (Day 4): Lines, Price Snapshots & Collaborators | 2.0 hrs | 2.0 hrs | Price snapshot `price_at_add`, line voiding reasons, and unique collaborator constraints |
-| Session 5 (Day 5): Dashboard, Alerts & CSV Export | 2.0 hrs | 2.0 hrs | Dashboard aggregation SQL queries, Recharts integration, and alert suppression logic |
-| Session 6 (Day 6): Security Hardening & Polish | 1.5 hrs | 2.0 hrs | JWT fail-fast checks, input validation error formatting, and date filters |
-| Session 7 (Day 7): Testing, KDS, Thermal Bills & Polish | 2.0 hrs | 3.0 hrs | Comprehensive end-to-end goal testing, KDS bump screen, thermal receipts, and portal modal overlays |
+| :--- | :--- | :--- | :--- |
+| **Session 1 (Day 1):** Planning & Architecture | 1.0 hr | 1.5 hrs | Took longer evaluating raw SQL vs Prisma ORM and finalizing the 7-table schema design |
+| **Session 2 (Day 2):** DB Schema, Auth & Roles | 2.0 hrs | 2.5 hrs | Raw SQL DDL, UUID extensions, and JWT role-guard middleware |
+| **Session 3 (Day 3):** Menu CRUD & Lifecycle State Machine | 2.0 hrs | 2.0 hrs | Bulk update per-item pass/fail reporting and state machine transition validation |
+| **Session 4 (Day 4):** Lines, Price Snapshots & Collaborators | 2.0 hrs | 2.0 hrs | Price snapshot `price_at_add`, line voiding reasons, and unique collaborator constraints |
+| **Session 5 (Day 5):** Dashboard, Alerts & CSV Export | 2.0 hrs | 2.0 hrs | Dashboard aggregation SQL queries, Recharts integration, and alert suppression logic |
+| **Session 6 (Day 6):** Security Hardening & Polish | 1.5 hrs | 2.0 hrs | JWT fail-fast checks, input validation error formatting, and date filters |
+| **Session 7 (Day 7):** Testing, KDS, Thermal Bills & Polish | 2.0 hrs | 3.0 hrs | Comprehensive end-to-end goal testing, KDS bump screen, thermal receipts, and portal modal overlays |
 
 ---
 
