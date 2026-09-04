@@ -33,7 +33,9 @@ import {
   Download,
   Calendar,
   ArrowUpDown,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Bell,
+  Send
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -71,6 +73,7 @@ export default function OrdersPage() {
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('DESC');
   const [showMyOrdersOnly, setShowMyOrdersOnly] = useState(() => !isManager);
+  const [showArchived, setShowArchived] = useState(false);
   const [page, setPage] = useState(1);
 
   // Create Order Modal State
@@ -85,11 +88,12 @@ export default function OrdersPage() {
   const [dishQuantity, setDishQuantity] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState('');
 
-  // Add Item to Existing Active Order State
+  // Add Item(s) to Existing Active Order State
   const [addingLineToOrder, setAddingLineToOrder] = useState(null);
   const [appendMenuItemId, setAppendMenuItemId] = useState('');
   const [appendQuantity, setAppendQuantity] = useState(1);
   const [appendSpecialInstructions, setAppendSpecialInstructions] = useState('');
+  const [appendDraftLines, setAppendDraftLines] = useState([]);
 
   // Void Order Line Modal State (Goal #3 Part B)
   const [voidingLineData, setVoidingLineData] = useState(null);
@@ -102,6 +106,40 @@ export default function OrdersPage() {
   const [collabWaitersList, setCollabWaitersList] = useState([]);
   const [selectedCollabWaiterId, setSelectedCollabWaiterId] = useState('');
   const [collabError, setCollabError] = useState('');
+
+  // Final Bill Receipt Modal State
+  const [printingBillOrder, setPrintingBillOrder] = useState(null);
+  const [closingTableLoading, setClosingTableLoading] = useState(false);
+
+  // Open Final Bill Receipt Modal
+  const handleOpenPrintBillModal = async (ord) => {
+    try {
+      setActionLoading(true);
+      const fullOrder = await apiFetch(`/orders/${ord.id}`);
+      setPrintingBillOrder(fullOrder);
+    } catch (err) {
+      alert(err.message || 'Failed to load order receipt.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Confirm Final Bill & Close Table (Complete Order Lifecycle)
+  const handleConfirmCloseTable = async (orderId) => {
+    try {
+      setClosingTableLoading(true);
+      await apiFetch(`/orders/${orderId}/archive`, {
+        method: 'PATCH',
+        body: JSON.stringify({ archived: true })
+      });
+      setPrintingBillOrder(null);
+      await fetchOrders();
+    } catch (err) {
+      alert(err.message || 'Failed to close table.');
+    } finally {
+      setClosingTableLoading(false);
+    }
+  };
 
   // Order Details View Modal State
   const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
@@ -119,6 +157,7 @@ export default function OrdersPage() {
       setError('');
 
       let endpoint = `/orders?page=${page}&limit=10`;
+      if (showArchived) endpoint += '&includeArchived=true';
       if (searchQuery.trim()) endpoint += `&search=${encodeURIComponent(searchQuery.trim())}`;
       if (statusFilter !== 'ALL') endpoint += `&status=${encodeURIComponent(statusFilter)}`;
       if (showMyOrdersOnly && user?.id) endpoint += `&waiterId=${encodeURIComponent(user.id)}`;
@@ -168,7 +207,7 @@ export default function OrdersPage() {
     fetchOrders();
     fetchMenuItems();
     fetchWaiters();
-  }, [page, statusFilter, showMyOrdersOnly, dateFilter, sortBy, sortOrder, user?.id]);
+  }, [page, statusFilter, showMyOrdersOnly, showArchived, dateFilter, sortBy, sortOrder, user?.id]);
 
   useEffect(() => {
     setShowMyOrdersOnly(!isManager);
@@ -278,23 +317,65 @@ export default function OrdersPage() {
     }
   };
 
-  // Submit Append Dish Line to Existing Active Order
+  // Add Dish to Append Draft List
+  const handleAddDishToAppendDraft = () => {
+    if (!appendMenuItemId) return;
+    const dish = menuItems.find(m => m.id === appendMenuItemId);
+    if (!dish) return;
+
+    setAppendDraftLines(prev => [
+      ...prev,
+      {
+        menu_item_id: dish.id,
+        name: dish.name,
+        price: parseFloat(dish.price),
+        quantity: parseInt(appendQuantity, 10) || 1,
+        special_instructions: appendSpecialInstructions ? appendSpecialInstructions.trim() : ''
+      }
+    ]);
+
+    setAppendQuantity(1);
+    setAppendSpecialInstructions('');
+  };
+
+  const handleRemoveAppendDraftLine = (index) => {
+    setAppendDraftLines(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Submit Append Dish Line(s) to Existing Active or Served Order
   const handleAppendDishLine = async (e) => {
     e.preventDefault();
-    if (!addingLineToOrder || !appendMenuItemId) return;
+    if (!addingLineToOrder) return;
+
+    let payload = {};
+    if (appendDraftLines.length > 0) {
+      payload = {
+        items: appendDraftLines.map(line => ({
+          menu_item_id: line.menu_item_id,
+          quantity: line.quantity,
+          special_instructions: line.special_instructions
+        }))
+      };
+    } else if (appendMenuItemId) {
+      payload = {
+        menu_item_id: appendMenuItemId,
+        quantity: parseInt(appendQuantity, 10) || 1,
+        special_instructions: appendSpecialInstructions
+      };
+    } else {
+      alert('Please select at least 1 dish to add.');
+      return;
+    }
 
     try {
       setActionLoading(true);
       const updatedOrder = await apiFetch(`/orders/${addingLineToOrder.id}/lines`, {
         method: 'POST',
-        body: JSON.stringify({
-          menu_item_id: appendMenuItemId,
-          quantity: appendQuantity,
-          special_instructions: appendSpecialInstructions
-        })
+        body: JSON.stringify(payload)
       });
 
       setAddingLineToOrder(null);
+      setAppendDraftLines([]);
       setAppendQuantity(1);
       setAppendSpecialInstructions('');
       if (selectedOrderDetails && selectedOrderDetails.id === updatedOrder.id) {
@@ -302,7 +383,7 @@ export default function OrdersPage() {
       }
       fetchOrders();
     } catch (err) {
-      alert(err.message || 'Failed to add dish to order.');
+      alert(err.message || 'Failed to add dish(es) to order.');
     } finally {
       setActionLoading(false);
     }
@@ -489,7 +570,7 @@ export default function OrdersPage() {
   // Export Daily Orders CSV Handler (Goal #7 Part B)
   const handleExportCSV = async () => {
     try {
-      let endpoint = '/orders/export/csv?';
+      let endpoint = '/orders/export/csv?includeArchived=true';
       if (searchQuery.trim()) endpoint += `&search=${encodeURIComponent(searchQuery.trim())}`;
       if (statusFilter !== 'ALL') endpoint += `&status=${encodeURIComponent(statusFilter)}`;
       if (showMyOrdersOnly && user?.id) endpoint += `&waiterId=${encodeURIComponent(user.id)}`;
@@ -563,6 +644,42 @@ export default function OrdersPage() {
           </button>
         </div>
       </div>
+
+      {/* Live Kitchen Food Ready Alert Banner */}
+      {orders.some(o => (o.status || '').toUpperCase() === 'READY') && (
+        <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-slate-100 space-y-2 shadow-lg shadow-emerald-500/10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+              <Bell className="w-4 h-4 animate-bounce" />
+              <span>KITCHEN ALERT: Food Ready at Pass for Service!</span>
+            </div>
+            <span className="text-xs text-slate-400 font-mono">
+              {orders.filter(o => (o.status || '').toUpperCase() === 'READY').length} Table(s) Waiting
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+            {orders.filter(o => (o.status || '').toUpperCase() === 'READY').map(readyOrd => (
+              <div key={readyOrd.id} className="bg-slate-900/90 p-3 rounded-xl border border-emerald-500/30 flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-bold text-slate-100 text-xs">{readyOrd.table_number}</p>
+                  <p className="text-[10px] text-slate-400">
+                    Waiter: <span className="text-slate-200">{readyOrd.primary_waiter_name}</span> ({readyOrd.item_count} items)
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleStatusTransition(readyOrd.id, 'SERVED')}
+                  disabled={actionLoading}
+                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  <span>Mark Served</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Main Error Banner */}
       {error && (
@@ -664,6 +781,22 @@ export default function OrdersPage() {
             <span>{showMyOrdersOnly ? 'My Orders Only' : 'All Orders'}</span>
           </button>
 
+          <button
+            onClick={() => {
+              setShowArchived(!showArchived);
+              setPage(1);
+            }}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
+              showArchived
+                ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20 border border-amber-500'
+                : 'bg-slate-950/80 text-slate-300 border border-slate-800 hover:text-white'
+            }`}
+            title="Show completed and archived orders"
+          >
+            <Archive className="w-3.5 h-3.5" />
+            <span>{showArchived ? 'Showing History' : 'Completed History'}</span>
+          </button>
+
           <div className="h-4 w-px bg-slate-800 shrink-0"></div>
 
           {[
@@ -708,7 +841,7 @@ export default function OrdersPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {orders.map((ord) => {
             const currentStatus = (ord.status || 'PLACED').toUpperCase();
-            const isActiveOrder = !ord.archived && !['SERVED', 'CANCELLED'].includes(currentStatus);
+            const isActiveOrder = !ord.archived && currentStatus !== 'CANCELLED';
 
             return (
               <div
@@ -775,7 +908,17 @@ export default function OrdersPage() {
                     </div>
 
                     <div className="flex items-center gap-1.5">
-                      {isActiveOrder && (
+                      {isActiveOrder && currentStatus === 'READY' && (
+                        <button
+                          disabled
+                          className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1 text-xs font-semibold opacity-80 cursor-not-allowed"
+                          title="Serve the current order first, then add more dishes"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Serve First</span>
+                        </button>
+                      )}
+                      {isActiveOrder && currentStatus !== 'READY' && (
                         <button
                           onClick={() => setAddingLineToOrder(ord)}
                           className="p-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition-colors cursor-pointer flex items-center gap-1 text-xs font-semibold"
@@ -813,7 +956,7 @@ export default function OrdersPage() {
                         <History className="w-3.5 h-3.5 text-amber-400" />
                       </button>
 
-                      {isManager && (
+                      {isManager && (ord.archived || ['SERVED', 'CANCELLED'].includes(currentStatus)) && (
                         <button
                           onClick={() => handleToggleArchive(ord.id, ord.archived)}
                           className={`p-2 rounded-xl transition-colors cursor-pointer ${
@@ -836,10 +979,10 @@ export default function OrdersPage() {
                         <button
                           onClick={() => handleStatusTransition(ord.id, 'ACCEPTED')}
                           disabled={actionLoading}
-                          className="flex-1 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-400 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 cursor-pointer"
                         >
-                          <Play className="w-3.5 h-3.5" />
-                          <span>Accept Order</span>
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Send to Kitchen (KOT)</span>
                         </button>
                         <button
                           onClick={() => handleStatusTransition(ord.id, 'CANCELLED')}
@@ -854,52 +997,46 @@ export default function OrdersPage() {
                     )}
 
                     {currentStatus === 'ACCEPTED' && (
-                      <>
-                        <button
-                          onClick={() => handleStatusTransition(ord.id, 'PREPARING')}
-                          disabled={actionLoading}
-                          className="flex-1 py-2 bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-400 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Flame className="w-3.5 h-3.5" />
-                          <span>Start Preparing</span>
-                        </button>
-                        <button
-                          onClick={() => handleStatusTransition(ord.id, 'CANCELLED')}
-                          disabled={actionLoading}
-                          className="py-2 px-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-semibold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
-                          title="Cancel Order"
-                        >
-                          <Ban className="w-3.5 h-3.5" />
-                          <span>Cancel</span>
-                        </button>
-                      </>
+                      <div className="w-full py-2 text-center text-xs font-bold text-blue-400 bg-blue-500/10 rounded-xl border border-blue-500/20 flex items-center justify-center gap-1.5">
+                        <Flame className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
+                        <span>Sent to Kitchen — Queued</span>
+                      </div>
                     )}
 
                     {currentStatus === 'PREPARING' && (
-                      <button
-                        onClick={() => handleStatusTransition(ord.id, 'READY')}
-                        disabled={actionLoading}
-                        className="w-full py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        <span>Mark Ready for Pickup</span>
-                      </button>
+                      <div className="w-full py-2 text-center text-xs font-bold text-purple-400 bg-purple-500/10 rounded-xl border border-purple-500/20 flex items-center justify-center gap-1.5">
+                        <Flame className="w-3.5 h-3.5 text-purple-400 animate-spin" />
+                        <span>Kitchen is Cooking Items...</span>
+                      </div>
                     )}
 
                     {currentStatus === 'READY' && (
                       <button
                         onClick={() => handleStatusTransition(ord.id, 'SERVED')}
                         disabled={actionLoading}
-                        className="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-1.5 cursor-pointer animate-pulse"
                       >
-                        <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Mark Served to Table</span>
+                        <Bell className="w-4 h-4 text-amber-300" />
+                        <span>🔔 Food Ready at Pass — Pick Up & Serve</span>
                       </button>
                     )}
 
-                    {(currentStatus === 'SERVED' || currentStatus === 'CANCELLED') && (
+                    {currentStatus === 'SERVED' && (
+                      <div className="w-full space-y-1.5">
+                        <button
+                          onClick={() => handleOpenPrintBillModal(ord)}
+                          disabled={actionLoading}
+                          className="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>Print Final Bill & Complete Table</span>
+                        </button>
+                      </div>
+                    )}
+
+                    {currentStatus === 'CANCELLED' && (
                       <div className="w-full py-1.5 text-center text-[11px] font-mono text-slate-500 bg-slate-950/60 rounded-xl border border-slate-800">
-                        Lifecycle Complete ({currentStatus})
+                        Lifecycle Complete (CANCELLED)
                       </div>
                     )}
                   </div>
@@ -1121,76 +1258,136 @@ export default function OrdersPage() {
       {/* Add Dish Line to Existing Active Order Modal */}
       {addingLineToOrder && createPortal(
         <div className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div>
                 <h2 className="text-lg font-bold text-slate-100">
-                  Add Dish to {addingLineToOrder.table_number}
+                  Add Dishes to {addingLineToOrder.table_number}
                 </h2>
                 <p className="text-xs text-slate-400">
-                  Appends a new dish line with price snapshot to this active order
+                  Select single or multiple dishes to add to this active order
                 </p>
               </div>
-              <button onClick={() => setAddingLineToOrder(null)} className="text-slate-400 hover:text-slate-200">
+              <button onClick={() => { setAddingLineToOrder(null); setAppendDraftLines([]); }} className="text-slate-400 hover:text-slate-200">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleAppendDishLine} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Select Dish</label>
-                <select
-                  value={appendMenuItemId}
-                  onChange={(e) => setAppendMenuItemId(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-                >
-                  {menuItems.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} — ₹{parseFloat(m.price).toFixed(2)}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-3">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-semibold text-slate-400 mb-1">Select Dish</label>
+                    <select
+                      value={appendMenuItemId}
+                      onChange={(e) => setAppendMenuItemId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                    >
+                      {menuItems.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} — ₹{parseFloat(m.price).toFixed(2)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">Quantity</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="99"
-                  value={appendQuantity}
-                  onChange={(e) => setAppendQuantity(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-slate-400 mb-1">Qty</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      value={appendQuantity}
+                      onChange={(e) => setAppendQuantity(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Special Instructions (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={appendSpecialInstructions}
-                  onChange={(e) => setAppendSpecialInstructions(e.target.value)}
-                  placeholder="e.g. Extra spicy, less oil"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+                <div>
+                  <label className="block text-[10px] font-semibold text-slate-400 mb-1">
+                    Special Instructions (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={appendSpecialInstructions}
+                    onChange={(e) => setAppendSpecialInstructions(e.target.value)}
+                    placeholder="e.g. Extra spicy, no onions"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setAddingLineToOrder(null)}
+                  onClick={handleAddDishToAppendDraft}
+                  className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-emerald-400 text-xs font-semibold rounded-lg border border-slate-700 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Dish to List</span>
+                </button>
+              </div>
+
+              {/* Draft Cart — Always Visible */}
+              <div className="space-y-2 pt-2 border-t border-slate-800">
+                <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Order Cart ({appendDraftLines.length} {appendDraftLines.length === 1 ? 'item' : 'items'})</span>
+                </label>
+
+                {appendDraftLines.length === 0 ? (
+                  <div className="py-4 text-center rounded-xl border border-dashed border-slate-700 bg-slate-950/50">
+                    <ShoppingBag className="w-5 h-5 text-slate-600 mx-auto mb-1.5" />
+                    <p className="text-[11px] text-slate-500">No dishes added yet</p>
+                    <p className="text-[10px] text-slate-600 mt-0.5">Select a dish above and click <span className="text-emerald-500 font-semibold">"Add Dish to List"</span> to add</p>
+                  </div>
+                ) : (
+                  <div className="max-h-36 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-800">
+                    {appendDraftLines.map((line, idx) => (
+                      <div key={idx} className="pt-2 first:pt-0 flex items-start justify-between gap-2 text-xs">
+                        <div className="flex-1">
+                          <p className="font-semibold text-slate-200">
+                            {line.quantity}x {line.name}
+                            <span className="text-slate-400 font-mono font-normal ml-2">
+                              (₹{(line.price * line.quantity).toFixed(2)})
+                            </span>
+                          </p>
+                          {line.special_instructions && (
+                            <p className="text-[11px] text-amber-400 italic">
+                              Note: {line.special_instructions}
+                            </p>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAppendDraftLine(idx)}
+                          className="text-slate-500 hover:text-red-400 p-1 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => { setAddingLineToOrder(null); setAppendDraftLines([]); }}
                   className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl cursor-pointer"
+                  disabled={actionLoading || appendDraftLines.length === 0}
+                  className={`px-4 py-2 text-white text-xs font-semibold rounded-xl cursor-pointer ${
+                    appendDraftLines.length === 0
+                      ? 'bg-slate-700 opacity-50 cursor-not-allowed'
+                      : 'bg-emerald-500 hover:bg-emerald-600'
+                  }`}
                 >
-                  {actionLoading ? 'Adding...' : 'Add Dish'}
+                  {actionLoading ? 'Sending...' : appendDraftLines.length > 0 ? `Send ${appendDraftLines.length} Dish(es) to Kitchen` : 'Add dishes to cart first'}
                 </button>
               </div>
             </form>
@@ -1314,48 +1511,57 @@ export default function OrdersPage() {
                 )}
               </div>
 
-              {/* Draft Selected Items List */}
-              {draftLines.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-slate-800">
-                  <label className="block text-xs font-semibold text-slate-300">
-                    Selected Dishes ({draftLines.length})
-                  </label>
+              {/* Order Cart — Always Visible */}
+              <div className="space-y-2 pt-2 border-t border-slate-800">
+                <label className="block text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+                  <ShoppingBag className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Order Cart ({draftLines.length} {draftLines.length === 1 ? 'dish' : 'dishes'})</span>
+                </label>
 
-                  <div className="max-h-36 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-800">
-                    {draftLines.map((line, idx) => (
-                      <div key={idx} className="pt-2 first:pt-0 flex items-start justify-between gap-2 text-xs">
-                        <div className="flex-1">
-                          <p className="font-semibold text-slate-200">
-                            {line.quantity}x {line.name}
-                            <span className="text-slate-400 font-mono font-normal ml-2">
-                              (₹{(line.price * line.quantity).toFixed(2)})
-                            </span>
-                          </p>
-                          {line.special_instructions && (
-                            <p className="text-[11px] text-amber-400 italic">
-                              Note: {line.special_instructions}
+                {draftLines.length === 0 ? (
+                  <div className="py-4 text-center rounded-xl border border-dashed border-slate-700 bg-slate-950/50">
+                    <ShoppingBag className="w-5 h-5 text-slate-600 mx-auto mb-1.5" />
+                    <p className="text-[11px] text-slate-500">No dishes added yet</p>
+                    <p className="text-[10px] text-slate-600 mt-0.5">Select a dish above and click <span className="text-emerald-500 font-semibold">"Add Dish to Order"</span> to queue items</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="max-h-36 overflow-y-auto space-y-2 pr-1 divide-y divide-slate-800">
+                      {draftLines.map((line, idx) => (
+                        <div key={idx} className="pt-2 first:pt-0 flex items-start justify-between gap-2 text-xs">
+                          <div className="flex-1">
+                            <p className="font-semibold text-slate-200">
+                              {line.quantity}x {line.name}
+                              <span className="text-slate-400 font-mono font-normal ml-2">
+                                (₹{(line.price * line.quantity).toFixed(2)})
+                              </span>
                             </p>
-                          )}
+                            {line.special_instructions && (
+                              <p className="text-[11px] text-amber-400 italic">
+                                Note: {line.special_instructions}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDraftLine(idx)}
+                            className="text-slate-500 hover:text-red-400 p-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveDraftLine(idx)}
-                          className="text-slate-500 hover:text-red-400 p-1"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-800 font-bold text-xs">
-                    <span className="text-slate-400">Order Subtotal:</span>
-                    <span className="text-emerald-400 font-mono text-sm">
-                      ₹{draftSubtotal.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              )}
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800 font-bold text-xs">
+                      <span className="text-slate-400">Order Subtotal:</span>
+                      <span className="text-emerald-400 font-mono text-sm">
+                        ₹{draftSubtotal.toFixed(2)}
+                      </span>
+                    </div>
+                  </>
+                )}
+              </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
                 <button
@@ -1367,10 +1573,14 @@ export default function OrdersPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading}
-                  className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-xl cursor-pointer"
+                  disabled={actionLoading || draftLines.length === 0}
+                  className={`px-4 py-2 text-white text-xs font-semibold rounded-xl cursor-pointer ${
+                    draftLines.length === 0
+                      ? 'bg-slate-700 opacity-50 cursor-not-allowed'
+                      : 'bg-emerald-500 hover:bg-emerald-600'
+                  }`}
                 >
-                  {actionLoading ? 'Creating Order...' : 'Submit Order'}
+                  {actionLoading ? 'Creating Order...' : draftLines.length > 0 ? `Submit Order (${draftLines.length} dishes)` : 'Add dishes to cart first'}
                 </button>
               </div>
             </form>
@@ -1578,6 +1788,132 @@ export default function OrdersPage() {
                 Close Audit Log
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Itemized Final Bill & Table Completion Modal */}
+      {printingBillOrder && createPortal(
+        <div className="fixed inset-0 z-[120] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 print-portal-overlay">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[92vh] overflow-y-auto print-card-box">
+            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800 no-print">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h2 className="text-lg font-bold text-slate-100">
+                    Final Bill Receipt — {printingBillOrder.table_number}
+                  </h2>
+                  <p className="text-xs text-slate-400 font-mono">
+                    Order ID: #{printingBillOrder.id.slice(0, 8)}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPrintingBillOrder(null)}
+                className="text-slate-400 hover:text-slate-200 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Printable Thermal Receipt Container */}
+            <div id="thermal-receipt" className="bg-slate-950 p-5 rounded-2xl border border-slate-800 space-y-4 text-xs font-mono">
+              <div className="text-center border-b border-dashed border-slate-800 pb-3 space-y-0.5">
+                <h3 className="font-bold text-slate-100 text-sm tracking-wide">RESTAURANT ORDER SYSTEM</h3>
+                <p className="text-slate-400 text-[11px]">Tax Invoice & Itemized Receipt</p>
+                <p className="text-slate-500 text-[10px]">{new Date(printingBillOrder.created_at).toLocaleString()}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-slate-400 text-[11px]">
+                <div>Table: <strong className="text-slate-200">{printingBillOrder.table_number}</strong></div>
+                <div className="text-right">Waiter: <strong className="text-slate-200">{printingBillOrder.primary_waiter_name}</strong></div>
+              </div>
+
+              {/* Itemized Lines with Pixel-Perfect Grid Column Alignment */}
+              <div className="border-t border-b border-dashed border-slate-800 py-3 space-y-2">
+                <div className="grid grid-cols-12 gap-2 font-bold text-slate-400 text-[11px] uppercase border-b border-slate-800/80 pb-1.5 items-center">
+                  <span className="col-span-6 text-left">Item Description</span>
+                  <span className="col-span-3 text-center">Qty x Price</span>
+                  <span className="col-span-3 text-right">Amount</span>
+                </div>
+
+                {printingBillOrder.lines && printingBillOrder.lines.filter(l => !l.voided).map((line, i) => (
+                  <div key={i} className="grid grid-cols-12 gap-2 items-center text-slate-200 py-0.5">
+                    <div className="col-span-6 text-left min-w-0 pr-1">
+                      <p className="font-medium text-slate-100 truncate">{line.item_name}</p>
+                      {line.special_instructions && (
+                        <p className="text-[10px] text-amber-400 italic font-sans truncate">{line.special_instructions}</p>
+                      )}
+                    </div>
+                    <div className="col-span-3 text-center text-slate-400 font-mono text-[11px]">
+                      {line.quantity} x ₹{parseFloat(line.price_at_add).toFixed(2)}
+                    </div>
+                    <div className="col-span-3 text-right font-bold text-emerald-400 font-mono text-[11px]">
+                      ₹{(line.quantity * parseFloat(line.price_at_add)).toFixed(2)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Financial Totals */}
+              <div className="space-y-1.5 text-right font-mono">
+                <div className="flex justify-between text-slate-400">
+                  <span>Subtotal:</span>
+                  <span className="text-slate-200 font-semibold">₹{parseFloat(printingBillOrder.total_amount || 0).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>GST Tax (5%):</span>
+                  <span className="text-slate-200 font-semibold">₹{(parseFloat(printingBillOrder.total_amount || 0) * 0.05).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-slate-100 font-bold text-sm border-t border-slate-800 pt-2">
+                  <span>Grand Total:</span>
+                  <span className="text-emerald-400 font-extrabold text-base">
+                    ₹{(parseFloat(printingBillOrder.total_amount || 0) * 1.05).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="text-center text-[10px] text-slate-500 pt-2 border-t border-dashed border-slate-800">
+                Thank you for dining with us! Please come again.
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-800 no-print">
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer flex items-center gap-1.5"
+              >
+                <span>🖨️ Print Receipt</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPrintingBillOrder(null)}
+                  className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleConfirmCloseTable(printingBillOrder.id)}
+                  disabled={closingTableLoading}
+                  className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {closingTableLoading ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Confirm Bill & Complete Table</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>,
         document.body

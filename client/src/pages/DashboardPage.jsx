@@ -46,7 +46,7 @@ export default function DashboardPage() {
   // Export Daily Orders CSV Handler (Goal #7 Part B - Today's Orders Only)
   const handleExportCSV = async () => {
     try {
-      const blob = await apiFetch('/orders/export/csv?date=today');
+      const blob = await apiFetch('/orders/export/csv?date=today&includeArchived=true');
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

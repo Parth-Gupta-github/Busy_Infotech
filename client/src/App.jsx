@@ -7,6 +7,7 @@ import RegisterPage from './pages/RegisterPage';
 import MenuPage from './pages/MenuPage';
 import OrdersPage from './pages/OrdersPage';
 import DashboardPage from './pages/DashboardPage';
+import KitchenView from './pages/KitchenView';
 import { apiFetch } from './services/api';
 import {
   Utensils,
@@ -15,6 +16,7 @@ import {
   Shield,
   User,
   ShoppingBag,
+  ChefHat,
   Sun,
   Moon,
   Bell,
@@ -91,9 +93,10 @@ function MainLayout({ children }) {
   };
 
   const navLinks = [
-    { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+    ...(isManager ? [{ name: 'Dashboard', path: '/', icon: LayoutDashboard }] : []),
     { name: 'Orders', path: '/orders', icon: ShoppingBag },
-    { name: 'Menu Management', path: '/menu', icon: Utensils }
+    { name: 'Kitchen Screen', path: '/kitchen', icon: ChefHat },
+    ...(isManager ? [{ name: 'Menu Management', path: '/menu', icon: Utensils }] : [])
   ];
 
   const isDarkMode = theme === 'dark';
@@ -110,7 +113,7 @@ function MainLayout({ children }) {
 
           {/* Logo & Navigation Links */}
           <div className="flex items-center gap-4 sm:gap-6 min-w-0">
-            <Link to="/" className="flex items-center gap-2.5 group shrink-0">
+            <Link to={isManager ? "/" : "/orders"} className="flex items-center gap-2.5 group shrink-0">
               <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white font-extrabold text-lg shadow-lg shadow-emerald-500/20 group-hover:scale-105 transition-transform">
                 R
               </div>
@@ -323,6 +326,11 @@ function MainLayout({ children }) {
   );
 }
 
+function HomeRoute() {
+  const { isManager } = useAuth();
+  return isManager ? <DashboardPage /> : <OrdersPage />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -336,7 +344,7 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <MainLayout>
-                  <DashboardPage />
+                  <HomeRoute />
                 </MainLayout>
               </ProtectedRoute>
             }
@@ -356,9 +364,20 @@ export default function App() {
           <Route
             path="/menu"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute allowedRoles={['MANAGER']}>
                 <MainLayout>
                   <MenuPage />
+                </MainLayout>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/kitchen"
+            element={
+              <ProtectedRoute>
+                <MainLayout>
+                  <KitchenView />
                 </MainLayout>
               </ProtectedRoute>
             }

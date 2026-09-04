@@ -19,8 +19,12 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password);
-      navigate('/');
+      const loggedUser = await login(email, password);
+      if (loggedUser?.role === 'WAITER') {
+        navigate('/orders');
+      } else {
+        navigate('/');
+      }
     } catch (err) {
       setError(err.message || 'Login failed. Please check your credentials.');
     } finally {

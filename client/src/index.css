@@ -119,3 +119,96 @@ html.light tr:hover {
 html.light .ring-slate-900 {
   --tw-ring-color: #ffffff !important;
 }
+
+/* Dedicated Thermal Bill Print Media Styles */
+@media print {
+  @page {
+    size: auto;
+    margin: 10mm;
+  }
+
+  html, body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Completely collapse main app container from document print height */
+  #root,
+  .no-print {
+    display: none !important;
+  }
+
+  /* Reset portal modal backdrop for clean print flow */
+  .print-portal-overlay {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    inset: auto !important;
+  }
+
+  .print-card-box {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Thermal Receipt Card Styling for Print */
+  #thermal-receipt {
+    display: block !important;
+    visibility: visible !important;
+    position: relative !important;
+    margin: 10px auto !important;
+    width: 100% !important;
+    max-width: 400px !important;
+    padding: 20px !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: 1px solid #000000 !important;
+    box-shadow: none !important;
+    border-radius: 8px !important;
+  }
+
+  #thermal-receipt h3,
+  #thermal-receipt p,
+  #thermal-receipt span,
+  #thermal-receipt div,
+  #thermal-receipt strong {
+    color: #000000 !important;
+  }
+
+  #thermal-receipt .text-slate-100,
+  #thermal-receipt .text-slate-200,
+  #thermal-receipt .text-slate-300,
+  #thermal-receipt .text-slate-400,
+  #thermal-receipt .text-slate-500 {
+    color: #000000 !important;
+  }
+
+  #thermal-receipt .text-emerald-400 {
+    color: #000000 !important;
+    font-weight: 800 !important;
+  }
+
+  #thermal-receipt .text-amber-400 {
+    color: #333333 !important;
+  }
+
+  #thermal-receipt .border-slate-800,
+  #thermal-receipt .border-slate-800\/80,
+  #thermal-receipt .border-dashed {
+    border-color: #000000 !important;
+  }
+}
+
