@@ -44,3 +44,22 @@ Log the decisions that actually shaped this codebase — the ones where a real a
 - **Chose:** Client HTTP Polling every 30 seconds for slow-order alerts.
 - **Rejected:** WebSockets (Socket.io) or Server-Sent Events (SSE).
 - **Why:** For an order alert threshold of 15 minutes, a 30-second polling interval introduces zero practical degradation while avoiding the overhead of WebSocket server lifecycle management, reconnection handling, and socket state sync.
+
+## Decision 8
+
+- **Chose:** Direct account registration with bcrypt password hashing without email verification.
+- **Rejected:** Enforcing email confirmation via Nodemailer / SMTP before activating accounts.
+- **Why:** In an assessment/testing environment, requiring email verification links creates unnecessary friction, delays, and potential SMTP delivery failures for reviewers. Direct registration allows immediate role-based onboarding while preserving production extensibility.
+
+## Decision 9
+
+- **Chose:** Unified Manager & Waiter access to the Kitchen Display System (`/kitchen`).
+- **Rejected:** Locking `/kitchen` exclusively to a separate `KITCHEN_STAFF` role.
+- **Why:** Permitting both Managers and Waiters to view and interact with the KDS enables a single tester to simulate order placement and kitchen bump transitions seamlessly without repeatedly logging in and out between accounts.
+
+## Decision 10
+
+- **Chose:** Filter-aware CSV export (`/orders/export/csv` matching active query filters).
+- **Rejected:** Static raw dump of the entire orders database table.
+- **Why:** Restaurant managers need operational reports matching their active search criteria (e.g., today's orders only, specific waiter's orders, or specific statuses) rather than parsing through an unfiltered monolithic database export.
+

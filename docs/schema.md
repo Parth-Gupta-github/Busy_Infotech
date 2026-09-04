@@ -13,8 +13,8 @@
 
 ### 2. `menu_items`
 - `id` (VARCHAR(36), Primary Key, default UUID)
-- `name` (VARCHAR(255), Not Null) — dish name
-- `price` (NUMERIC(10, 2), Not Null) — price
+- `name` (VARCHAR(255), Unique, Not Null) — dish name
+- `price` (NUMERIC(10, 2), Not Null, CHECK (price >= 0)) — price in Indian Rupees (₹)
 - `available` (BOOLEAN, Default true) — whether item is in stock
 - `archived` (BOOLEAN, Default false) — soft delete flag
 - `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
@@ -22,46 +22,47 @@
 
 ### 3. `orders`
 - `id` (VARCHAR(36), Primary Key, default UUID)
-- `table_number` (INT, Not Null) — table number
+- `table_number` (VARCHAR(255), Not Null) — table identifier (e.g. "Table 4", "T-12", "Bar 1")
 - `status` (`order_status_enum`: 'PLACED' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED')
+- `notes` (TEXT, Nullable) — general order/table notes
 - `archived` (BOOLEAN, Default false) — soft delete flag
-- `primary_waiter_id` (VARCHAR(36), Foreign Key → `users.id`)
+- `primary_waiter_id` (VARCHAR(36), Foreign Key → `users.id` ON DELETE CASCADE)
 - `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 - `updated_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 
 ### 4. `order_lines`
 - `id` (VARCHAR(36), Primary Key, default UUID)
-- `order_id` (VARCHAR(36), Foreign Key → `orders.id`)
+- `order_id` (VARCHAR(36), Foreign Key → `orders.id` ON DELETE CASCADE)
 - `menu_item_id` (VARCHAR(36), Foreign Key → `menu_items.id`)
-- `quantity` (INT, Not Null, CHECK quantity > 0)
-- `special_instructions` (TEXT, Nullable)
-- `price_at_add` (NUMERIC(10, 2), Not Null) — snapshot of price when added
-- `voided` (BOOLEAN, Default false)
-- `void_reason` (TEXT, Nullable)
+- `quantity` (INT, Not Null, CHECK (quantity > 0))
+- `special_instructions` (TEXT, Nullable) — item customization (e.g. "Extra spicy, no onions")
+- `price_at_add` (NUMERIC(10, 2), Not Null, CHECK (price_at_add >= 0)) — snapshot of price when added
+- `voided` (BOOLEAN, Default false) — whether line is voided
+- `void_reason` (TEXT, Nullable) — required reason if voided
 - `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 - `updated_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 
 ### 5. `order_collaborators`
 - `id` (VARCHAR(36), Primary Key, default UUID)
-- `order_id` (VARCHAR(36), Foreign Key → `orders.id`)
-- `waiter_id` (VARCHAR(36), Foreign Key → `users.id`)
+- `order_id` (VARCHAR(36), Foreign Key → `orders.id` ON DELETE CASCADE)
+- `waiter_id` (VARCHAR(36), Foreign Key → `users.id` ON DELETE CASCADE)
 - `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
-- Unique constraint: `UNIQUE(order_id, waiter_id)`
+- Constraint: `CONSTRAINT unique_order_waiter UNIQUE(order_id, waiter_id)`
 
 ### 6. `audit_logs` (Immutable)
 - `id` (VARCHAR(36), Primary Key, default UUID)
-- `order_id` (VARCHAR(36), Foreign Key → `orders.id`)
+- `order_id` (VARCHAR(36), Foreign Key → `orders.id` ON DELETE CASCADE)
 - `user_id` (VARCHAR(36), Foreign Key → `users.id`)
 - `action` (`audit_action_enum`: 'ORDER_CREATED' | 'STATUS_CHANGED' | 'LINE_ADDED' | 'LINE_VOIDED' | 'COLLABORATOR_ADDED' | 'COLLABORATOR_REMOVED' | 'NOTE_ADDED' | 'ORDER_ARCHIVED' | 'ORDER_RESTORED')
 - `old_status` (`order_status_enum`, Nullable)
 - `new_status` (`order_status_enum`, Nullable)
 - `details` (JSONB, Nullable)
 - `created_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
-- *(Deliberately no `updated_at` column)*
+- *(Deliberately no `updated_at` column — append-only record)*
 
 ### 7. `alert_acknowledgments`
 - `id` (VARCHAR(36), Primary Key, default UUID)
-- `order_id` (VARCHAR(36), Foreign Key → `orders.id`)
+- `order_id` (VARCHAR(36), Foreign Key → `orders.id` ON DELETE CASCADE)
 - `user_id` (VARCHAR(36), Foreign Key → `users.id`)
 - `acknowledged_at` (TIMESTAMPTZ, Default CURRENT_TIMESTAMP)
 
