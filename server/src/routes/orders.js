@@ -3,6 +3,7 @@ const { body, query, validationResult } = require('express-validator');
 const orderService = require('../services/orderService');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/roleCheck');
+const { checkOrderAccess } = require('../middleware/checkOrderAccess');
 
 const router = express.Router();
 
@@ -59,6 +60,7 @@ router.get('/export/csv', authenticateToken, async (req, res, next) => {
 router.post(
   '/:id/lines',
   authenticateToken,
+  checkOrderAccess(),
   [
     body('menu_item_id').trim().notEmpty().withMessage('Menu item ID is required.'),
     body('quantity').optional().isInt({ min: 1 }).toInt(),
@@ -85,6 +87,7 @@ router.post(
 router.patch(
   '/:id/lines/:lineId/void',
   authenticateToken,
+  checkOrderAccess(),
   [
     body('void_reason').trim().notEmpty().withMessage('Void reason is required when voiding an order line.'),
     body('void_quantity').optional().isInt({ min: 1 }).toInt(),
@@ -106,10 +109,11 @@ router.patch(
   }
 );
 
-// Add a collaborator waiter to an active order (Goal #5)
+// Add a collaborator waiter to an active order (Primary waiter or Manager only)
 router.post(
   '/:id/collaborators',
   authenticateToken,
+  checkOrderAccess({ primaryOnly: true }),
   [
     body('waiter_id').trim().notEmpty().withMessage('Waiter ID is required.'),
     validate
@@ -128,10 +132,11 @@ router.post(
   }
 );
 
-// Remove a collaborator waiter from an order (Goal #5)
+// Remove a collaborator waiter from an order (Primary waiter or Manager only)
 router.delete(
   '/:id/collaborators/:waiterId',
   authenticateToken,
+  checkOrderAccess({ primaryOnly: true }),
   async (req, res, next) => {
     try {
       const updatedOrder = await orderService.removeOrderCollaborator({
@@ -146,10 +151,11 @@ router.delete(
   }
 );
 
-// Get all collaborators for an order (Goal #5)
+// Get all collaborators for an order
 router.get(
   '/:id/collaborators',
   authenticateToken,
+  checkOrderAccess(),
   async (req, res, next) => {
     try {
       const collaborators = await orderService.getOrderCollaborators(req.params.id);
@@ -195,7 +201,7 @@ router.get(
 );
 
 // Get single order by ID
-router.get('/:id', authenticateToken, async (req, res, next) => {
+router.get('/:id', authenticateToken, checkOrderAccess(), async (req, res, next) => {
   try {
     const order = await orderService.getOrderById(req.params.id);
     res.json(order);
@@ -208,6 +214,7 @@ router.get('/:id', authenticateToken, async (req, res, next) => {
 router.patch(
   '/:id/status',
   authenticateToken,
+  checkOrderAccess(),
   [
     body('status').trim().notEmpty().withMessage('Status is required.'),
     validate
@@ -227,7 +234,7 @@ router.patch(
 );
 
 // Get order audit log history
-router.get('/:id/audit', authenticateToken, async (req, res, next) => {
+router.get('/:id/audit', authenticateToken, checkOrderAccess(), async (req, res, next) => {
   try {
     const logs = await orderService.getOrderAuditLogs(req.params.id);
     res.json(logs);
@@ -241,6 +248,7 @@ router.patch(
   '/:id/archive',
   authenticateToken,
   requireRole('MANAGER'),
+  checkOrderAccess(),
   [
     body('archived').isBoolean().withMessage('Archived field must be a boolean (true/false).'),
     validate

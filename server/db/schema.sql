@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS menu_items (
     id VARCHAR(36) PRIMARY KEY DEFAULT uuid_generate_v4()::text,
     name VARCHAR(255) NOT NULL,
-    price NUMERIC(10, 2) NOT NULL,
+    price NUMERIC(10, 2) NOT NULL CHECK (price >= 0),
     available BOOLEAN NOT NULL DEFAULT true,
     archived BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS order_lines (
     menu_item_id VARCHAR(36) NOT NULL REFERENCES menu_items(id),
     quantity INT NOT NULL CHECK (quantity > 0),
     special_instructions TEXT,
-    price_at_add NUMERIC(10, 2) NOT NULL,
+    price_at_add NUMERIC(10, 2) NOT NULL CHECK (price_at_add >= 0),
     voided BOOLEAN NOT NULL DEFAULT false,
     void_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -110,10 +110,24 @@ CREATE TABLE IF NOT EXISTS alert_acknowledgments (
 );
 
 -- ─── Indexes for Performance ────────────────────────────────────
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_primary_waiter ON orders(primary_waiter_id);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_table_number ON orders(table_number);
+CREATE INDEX IF NOT EXISTS idx_orders_archived ON orders(archived);
 CREATE INDEX IF NOT EXISTS idx_order_lines_order_id ON order_lines(order_id);
+CREATE INDEX IF NOT EXISTS idx_order_collaborators_lookup ON order_collaborators(order_id, waiter_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_order_id ON audit_logs(order_id);
 CREATE INDEX IF NOT EXISTS idx_alert_ack_order_id ON alert_acknowledgments(order_id);
+
+-- ─── Business Invariant Constraints on Existing Tables ───────────
+DO $$ BEGIN
+    ALTER TABLE menu_items ADD CONSTRAINT chk_menu_items_price CHECK (price >= 0);
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    ALTER TABLE order_lines ADD CONSTRAINT chk_order_lines_price_at_add CHECK (price_at_add >= 0);
+EXCEPTION WHEN duplicate_object THEN null;
+END $$;
